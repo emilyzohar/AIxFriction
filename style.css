@@ -1,0 +1,142 @@
+:root {
+  --bg: #0b0f14;
+  --card: #111826;
+  --text: #e7edf7;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --good: #22c55e;
+  --bad: #ef4444;
+  --warn: #f59e0b;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.card {
+  width: min(900px, 95vw);
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.subtle { color: var(--muted); }
+
+.content {
+  margin-top: 14px;
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.big {
+  font-size: 80px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn {
+  background: rgba(96,165,250,0.15);
+  border: 1px solid rgba(96,165,250,0.35);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 650;
+}
+.btn:hover { filter: brightness(1.12); }
+
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  font-size: 13px;
+}
+
+.kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.notice {
+  max-width: 760px;
+  line-height: 1.45;
+  text-align: left;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 14px 14px;
+  border-radius: 14px;
+}
+
+.hr {
+  width: 100%;
+  height: 1px;
+  background: rgba(255,255,255,0.10);
+  margin: 12px 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  gap: 10px;
+}
+
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+
+.small { font-size: 14px; line-height: 1.4; }
+
+.progressWrap {
+  width: min(720px, 92%);
+}
+.progressBar {
+  width: 100%;
+  height: 10px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.progressFill {
+  height: 100%;
+  width: 0%;
+  background: rgba(96,165,250,0.85);
+}
