@@ -16,7 +16,6 @@
     diffLengths: Array.from({ length: 20 }, (_, i) => i + 1),
 
     effortRatings: [],                   // {len, rating, trialLabel, timestampISO}
-    successRatings: [],
 
     difficultyCounters: {},
 practiceCorrectCounts: {},
@@ -506,7 +505,7 @@ async function runDemographicsBlock() {
   }
 
 
-async function probeDifficultyAndAchievability({ length, label }) {
+async function probeDifficultyAndAchievability({ length, label, correct }) {
   setHeader("Question");
   setFooter("1–7", "Keyboard");
 
@@ -551,6 +550,7 @@ async function probeDifficultyAndAchievability({ length, label }) {
     label,
     demandingRating,
     achievableRating,
+    correct,
 
     // Keep this alias so older code that expects r.rating still works.
     rating: demandingRating
@@ -560,6 +560,7 @@ async function probeDifficultyAndAchievability({ length, label }) {
     length,
     demandingRating,
     achievableRating,
+    correct,
     rating: demandingRating,
     label,
     timestampISO: rec.timestampISO
@@ -570,6 +571,7 @@ async function probeDifficultyAndAchievability({ length, label }) {
     label,
     demandingRating,
     achievableRating,
+    correct,
     rating: demandingRating
   });
 
@@ -603,13 +605,15 @@ async function practiceTrialWithRating(label, length, feedback, skip) {
     if (state.difficultyCounters[length] === 2) {
       levelRating = await probeDifficultyAndAchievability({
         length,
-        label: res.label
+        label: res.label,
+        correct: res.correct
       });
     }
   } else {
     levelRating = await probeDifficultyAndAchievability({
       length,
-      label: res.label
+      label: res.label,
+      correct: res.correct
     });
   }
 
@@ -634,7 +638,6 @@ async function practiceTrialWithRating(label, length, feedback, skip) {
     state.effortRatings.forEach(r => {
   logEvent(`demand_rating_practice`, {
     length: r.length,
-    rating: r.rating,
     label: 'practice',
     timestampISO: r.timestampISO,
     correct_count: state.practiceCorrectCounts[r.length] || 0
@@ -726,7 +729,6 @@ function flattenForCSVFromState() {
     diffLengths: JSON.stringify(state.diffLengths),
     practiceCorrectCounts: JSON.stringify(state.practiceCorrectCounts),
     effortRatings: JSON.stringify(state.effortRatings),
-    successRatings: JSON.stringify(state.successRatings),
     highEffortCondition: JSON.stringify(state.highEffortCondition),
     totalTicketsAfter: state.bdmTickets?.total ?? 0
   });
@@ -759,6 +761,7 @@ function flattenForCSVFromState() {
       length: r.length,
       demandingRating: r.demandingRating ?? r.rating ?? "",
       achievableRating: r.achievableRating ?? "",
+      correct: r.correct ? 1 : 0,
       rating: r.rating ?? r.demandingRating ?? "",
       correct_count: state.practiceCorrectCounts[r.length] || 0
     });
@@ -859,7 +862,7 @@ async function endScreen() {
 
     await wait(400);
     window.location.href =
-      `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1265&credit_token=16053a2578fc45a28edd6d4ac7be7b07&survey_code=${state.participantId}`;
+      `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1308&credit_token=583ce639555b456bbf452fad6db133a4&survey_code=${state.participantId}`;
   } catch (e) {
     console.error(e);
 
@@ -960,7 +963,6 @@ function toCSV(rows) {
     "trialTimeMs",
     "demandingRating",
     "achievableRating",
-    "rating",
     "correct_count",
     "key",
     "construct",
@@ -1024,7 +1026,7 @@ async function saveCSVToPipe({ experimentID, filename, csvString }) {
 
     
     await instructionsScreen_Add();  // Present task instructions
-     await runReady();   
+    await runReady();   
 
 
     // PRACTICE must run, otherwise highEffortCondition is empty
