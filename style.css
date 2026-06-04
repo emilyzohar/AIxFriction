@@ -226,3 +226,7 @@ body {
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+.calc-wide {
+  grid-column: span 4;
+}

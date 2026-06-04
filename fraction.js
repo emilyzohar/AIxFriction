@@ -632,32 +632,48 @@ function rawFracHTML(n, d, forceFraction = false) {
   }
 function safeCalculatorEval(expr) {
   const cleaned = String(expr || "")
+    .replace(/\s/g, "")
     .replace(/×/g, "*")
-    .replace(/÷/g, "/")
     .replace(/−/g, "-")
     .trim();
 
-  // Only allow numbers, operators, parentheses, decimal points, and spaces.
-  // This prevents arbitrary JS execution.
-  if (!/^[0-9+\-*/().\s]+$/.test(cleaned)) {
-    return { ok: false, error: "Use only numbers and + − × ÷." };
-  }
-
   if (!cleaned) {
-    return { ok: false, error: "Enter a calculation." };
+    return { ok: false, error: "Enter one calculation." };
   }
 
-  try {
-    const result = Function(`"use strict"; return (${cleaned});`)();
+  // Whole-number-only, single-operation calculator.
+  // Allows: 7+4, 10-3, 6*8, 20÷5
+  // Rejects: fractions, decimals, brackets, and multiple operations.
+  const m = cleaned.match(/^(\d+)([+\-*÷])(\d+)$/);
 
-    if (!Number.isFinite(result)) {
-      return { ok: false, error: "Invalid calculation." };
+  if (!m) {
+    return {
+      ok: false,
+      error: "Enter one whole-number calculation only, e.g., 7+4 or 20÷5."
+    };
+  }
+
+  const left = Number(m[1]);
+  const op = m[2];
+  const right = Number(m[3]);
+
+  let result;
+
+  if (op === "+") result = left + right;
+  if (op === "-") result = left - right;
+  if (op === "*") result = left * right;
+  if (op === "÷") {
+    if (right === 0) {
+      return { ok: false, error: "Cannot divide by 0." };
     }
+    result = left / right;
+  }
 
-    return { ok: true, result };
-  } catch {
+  if (!Number.isFinite(result)) {
     return { ok: false, error: "Invalid calculation." };
   }
+
+  return { ok: true, result };
 }
 
 function attachCalculatorHandlers() {
@@ -718,34 +734,28 @@ function showCalculatorPanel() {
       Scratch calculations. Final answers must be fractions or whole numbers.
     </div>
 
-    <input id="calcInput" class="input calc-input" autocomplete="off" placeholder="e.g., 3/4 + 1/2" />
+<input id="calcInput" class="input calc-input" autocomplete="off" placeholder="e.g., 7+4" />
+  <div class="calc-grid">
+  <button type="button" class="calc-key" data-calc-key="7">7</button>
+  <button type="button" class="calc-key" data-calc-key="8">8</button>
+  <button type="button" class="calc-key" data-calc-key="9">9</button>
+  <button type="button" class="calc-key" data-calc-key="÷">÷</button>
 
-    <div class="calc-grid">
-      <button type="button" class="calc-key" data-calc-key="7">7</button>
-      <button type="button" class="calc-key" data-calc-key="8">8</button>
-      <button type="button" class="calc-key" data-calc-key="9">9</button>
-      <button type="button" class="calc-key" data-calc-key="/">÷</button>
+  <button type="button" class="calc-key" data-calc-key="4">4</button>
+  <button type="button" class="calc-key" data-calc-key="5">5</button>
+  <button type="button" class="calc-key" data-calc-key="6">6</button>
+  <button type="button" class="calc-key" data-calc-key="*">×</button>
 
-      <button type="button" class="calc-key" data-calc-key="4">4</button>
-      <button type="button" class="calc-key" data-calc-key="5">5</button>
-      <button type="button" class="calc-key" data-calc-key="6">6</button>
-      <button type="button" class="calc-key" data-calc-key="*">×</button>
+  <button type="button" class="calc-key" data-calc-key="1">1</button>
+  <button type="button" class="calc-key" data-calc-key="2">2</button>
+  <button type="button" class="calc-key" data-calc-key="3">3</button>
+  <button type="button" class="calc-key" data-calc-key="-">−</button>
 
-      <button type="button" class="calc-key" data-calc-key="1">1</button>
-      <button type="button" class="calc-key" data-calc-key="2">2</button>
-      <button type="button" class="calc-key" data-calc-key="3">3</button>
-      <button type="button" class="calc-key" data-calc-key="-">−</button>
-
-      <button type="button" class="calc-key" data-calc-key="0">0</button>
-      <button type="button" class="calc-key" data-calc-key=".">.</button>
-      <button type="button" class="calc-key" data-calc-key="(">(</button>
-      <button type="button" class="calc-key" data-calc-key=")">)</button>
-
-      <button type="button" class="calc-key" data-calc-key="+">+</button>
-      <button type="button" class="calc-key" data-calc-key=" ">space</button>
-      <button type="button" id="btnCalcClear" class="calc-key">clear</button>
-      <button type="button" id="btnCalc" class="calc-key">=</button>
-    </div>
+  <button type="button" class="calc-key" data-calc-key="0">0</button>
+  <button type="button" class="calc-key" data-calc-key="+">+</button>
+  <button type="button" id="btnCalcClear" class="calc-key">clear</button>
+  <button type="button" id="btnCalc" class="calc-key">=</button>
+</div>
 
     <div class="calc-output">
       <div class="small subtle">Result</div>
