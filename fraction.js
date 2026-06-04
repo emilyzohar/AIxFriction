@@ -6,7 +6,7 @@
   // ============================================================
   const CONFIG = {
     experimentID: "QgzXmzXwxYHB",
-    nTrials: 1,
+    nTrials: 10,
     bankSize: 50,
     allowMixedNumbers: true,
     feedbackMs: 1200,
