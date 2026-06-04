@@ -123,7 +123,12 @@ body {
 .warn { color: var(--warn); }
 
 .small { font-size: 14px; line-height: 1.4; }
-
+.problem-text {
+  font-size: 32px;
+  line-height: 1.4;
+  text-align: center;
+  margin: 20px 0;
+}
 .progressWrap {
   width: min(720px, 92%);
 }
@@ -139,4 +144,85 @@ body {
   height: 100%;
   width: 0%;
   background: rgba(96,165,250,0.85);
+}
+
+.calculator-panel-fixed {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 230px;
+  max-height: 520px;
+  z-index: 9999;
+
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  padding: 10px;
+
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+
+  font-size: 13px;
+  overflow: visible;
+}
+
+.calc-title {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.calc-instructions {
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+
+.calc-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.calc-key {
+  height: 28px;
+  padding: 3px;
+  border: 1px solid #cfcfcf;
+  border-radius: 5px;
+  background: #f8f8f8;
+  color: #111827;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.calc-key:hover {
+  background: #eeeeee;
+}
+
+.calc-output {
+  margin-top: 8px;
+  padding: 8px;
+  min-height: 46px;
+  max-height: 90px;
+  overflow-y: auto;
+
+  border-radius: 6px;
+  background: #f4f4f5;
+  color: #111827;
+}
+
+.calc-result {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
