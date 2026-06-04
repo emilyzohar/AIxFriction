@@ -7,7 +7,7 @@
   const CONFIG = {
     experimentID: "QgzXmzXwxYHB",
     nTrials: 1,
-    bankSize: 100,
+    bankSize: 50,
     allowMixedNumbers: true,
     feedbackMs: 1200,
     sonaRedirectURL: "", // optional; leave blank if not using SONA redirect
@@ -272,231 +272,183 @@ function rawFracHTML(n, d, forceFraction = false) {
   }
 
   function generateProblemBank() {
-    let id = 0;
-    const bank = [];
+  let id = 0;
+  const bank = [];
 
-    const oneStepPairs = [
-      [3,5,1,4,"+"], [5,6,1,3,"-"], [2,3,4,5,"*"], [3,4,2,3,"/"],
-      [7,8,1,4,"-"], [3,5,10,9,"*"], [5,6,2,3,"/"], [11,12,1,6,"+"],
-      [4,7,2,3,"+"], [9,10,3,5,"-"], [5,8,4,15,"*"], [7,9,14,27,"/"],
-      [1,2,3,8,"+"], [13,15,2,5,"-"], [6,11,22,9,"*"], [8,9,4,3,"/"],
-      [5,12,7,18,"+"], [7,10,1,5,"-"], [9,14,7,18,"*"], [15,16,5,8,"/"],
-      [2,9,5,6,"+"], [17,20,3,10,"-"], [11,12,6,7,"*"], [10,21,5,14,"/"],
-      [3,16,5,12,"+"], [19,24,7,12,"-"], [8,15,25,16,"*"], [9,20,3,10,"/"],
-      [5,18,7,9,"+"], [14,15,2,3,"-"], [3,11,22,15,"*"], [7,12,14,9,"/"],
-      [1,6,5,8,"+"], [5,9,1,6,"-"], [4,13,26,21,"*"], [6,7,9,14,"/"],
-      [7,15,2,9,"+"], [11,18,1,3,"-"], [5,6,9,10,"*"], [4,5,2,15,"/"]
-    ];
-
-    for (const [a,b,c,d,op] of oneStepPairs) {
-      const x = F(a,b);
-      const y = F(c,d);
-
-     let ans;
-let symbolText;
-let symbolHTML;
-
-if (op === "+") {
-  ans = add(x.f, y.f);
-  symbolText = "+";
-  symbolHTML = "+";
-}
-
-if (op === "-") {
-  ans = sub(x.f, y.f);
-  symbolText = "-";
-  symbolHTML = "−";
-}
-
-if (op === "*") {
-  ans = mul(x.f, y.f);
-  symbolText = "*";
-  symbolHTML = "×";
-}
-
-if (op === "/") {
-  ans = div(x.f, y.f);
-  symbolText = "/";
-  symbolHTML = "÷";
-}
-
-      id += 1;
-
-      bank.push(P({
-        id: `F${String(id).padStart(3, "0")}`,
-        difficulty: op === "+" || op === "-" ? "easy" : "easy-medium",
-        steps: 1,
-        expressionText: `${x.text} ${symbolText} ${y.text}`,
-        expressionHTML: `${x.html} ${symbolHTML} ${y.html}`,
-        answer: ans
-      }));
-    }
-
-    const twoStep = [
-      [[2,3],[1,4],"+",[3,5],"*"], [[5,6],[1,3],"-",[2,5],"/"],
-      [[3,4],[2,5],"+",[4,7],"*"], [[7,8],[1,2],"-",[5,6],"*"],
-      [[3,4],[2,3],"+",[6,7],"*"], [[7,9],[1,3],"-",[2,5],"/"],
-      [[5,8],[1,4],"+",[4,9],"*"], [[11,12],[1,6],"-",[3,5],"/"],
-      [[4,7],[1,2],"+",[7,10],"*"], [[9,10],[1,5],"-",[5,7],"/"],
-      [[2,9],[5,6],"+",[3,8],"*"], [[17,20],[3,10],"-",[2,11],"/"],
-      [[1,2],[3,8],"+",[4,5],"/"], [[13,15],[2,5],"-",[9,11],"*"],
-      [[5,12],[7,18],"+",[6,13],"*"], [[7,10],[1,5],"-",[4,9],"/"],
-      [[3,16],[5,12],"+",[8,15],"/"], [[19,24],[7,12],"-",[3,4],"*"],
-      [[5,18],[7,9],"+",[9,14],"*"], [[14,15],[2,3],"-",[3,8],"/"],
-      [[1,6],[5,8],"+",[9,10],"*"], [[5,9],[1,6],"-",[7,12],"/"],
-      [[7,15],[2,9],"+",[5,11],"/"], [[11,18],[1,3],"-",[6,7],"*"],
-      [[4,5],[2,15],"+",[3,7],"/"], [[8,9],[1,6],"-",[2,3],"*"],
-      [[5,7],[3,14],"+",[7,9],"*"], [[9,11],[2,3],"-",[11,15],"/"],
-      [[3,10],[7,12],"+",[5,8],"*"], [[11,16],[1,8],"-",[4,5],"/"]
-    ];
-
-    for (const [A, B, op1, C, op2] of twoStep) {
-      const a = F(A[0], A[1]);
-      const b = F(B[0], B[1]);
-      const c = F(C[0], C[1]);
-
-      const mid = op1 === "+" ? add(a.f, b.f) : sub(a.f, b.f);
-      const ans = op2 === "*" ? mul(mid, c.f) : div(mid, c.f);
-
-      const s1 = op1 === "+" ? "+" : "−";
-      const s2 = op2 === "*" ? "*" : "/";
-
-      id += 1;
-
-      bank.push(P({
-        id: `F${String(id).padStart(3, "0")}`,
-        difficulty: "medium",
-        steps: 2,
-        expressionText: `(${a.text} ${s1} ${b.text}) ${s2} ${c.text}`,
-        expressionHTML: `(${a.html} ${s1} ${b.html}) ${s2} ${c.html}`,
-        answer: ans
-      }));
-    }
-
-    const threeStep = [
-      [[1,2],[1,3],"+",[3,4],"*",[2,5],"/"],
-      [[3,4],[1,2],"-",[1,3],[1,6],"+","*"],
-      [[2,3],[1,4],"+",[6,7],"*",[3,5],"/"],
-      [[1,2],[3,5],"*",[2,3],[3,4],"*","+"],
-      [[5,6],[1,4],"-",[2,3],[1,6],"+","*"],
-      [[3,4],[2,5],"/",[1,3],[3,2],"*","-"],
-      [[7,8],[1,2],"-",[5,6],"*",[3,10],"+"],
-      [[2,9],[5,6],"+",[3,8],"*",[1,4],"/"],
-      [[17,20],[3,10],"-",[2,11],"/",[1,5],"-"],
-      [[13,15],[2,5],"-",[9,11],"*",[3,10],"+"],
-      [[5,12],[7,18],"+",[6,13],"*",[2,9],"/"],
-      [[7,10],[1,5],"-",[4,9],"/",[1,8],"+"],
-      [[3,16],[5,12],"+",[8,15],"/",[3,5],"-"],
-      [[19,24],[7,12],"-",[3,4],"*",[1,6],"+"],
-      [[5,18],[7,9],"+",[9,14],"*",[1,3],"/"],
-      [[14,15],[2,3],"-",[3,8],"/",[2,9],"+"],
-      [[1,6],[5,8],"+",[9,10],"*",[1,7],"/"],
-      [[5,9],[1,6],"-",[7,12],"/",[1,4],"+"],
-      [[7,15],[2,9],"+",[5,11],"/",[3,10],"-"],
-      [[11,18],[1,3],"-",[6,7],"*",[5,12],"+"],
-      [[4,5],[2,15],"+",[3,7],"/",[2,9],"-"],
-      [[8,9],[1,6],"-",[2,3],"*",[5,18],"+"],
-      [[5,7],[3,14],"+",[7,9],"*",[1,2],"/"],
-      [[9,11],[2,3],"-",[11,15],"/",[1,6],"+"],
-      [[3,10],[7,12],"+",[5,8],"*",[1,9],"/"],
-      [[11,16],[1,8],"-",[4,5],"/",[2,7],"+"],
-      [[2,5],[3,10],"+",[5,6],"/",[1,4],"-"],
-      [[7,12],[1,8],"+",[9,10],"*",[3,5],"/"],
-      [[5,9],[2,15],"-",[6,7],"/",[1,10],"+"],
-      [[3,7],[1,14],"+",[7,8],"*",[2,3],"/"]
-    ];
-
-    for (const row of threeStep) {
-      const A = row[0];
-      const B = row[1];
-      const op1 = row[2];
-
-      const a = F(A[0], A[1]);
-      const b = F(B[0], B[1]);
-
-      const first = op1 === "+" ? add(a.f, b.f) : sub(a.f, b.f);
-      const s1 = op1 === "+" ? "+" : "−";
-
-      let expressionText;
-      let expressionHTML;
-      let ans;
-
-      // Form 1: ((a +/- b) * c) / d, or similar left chain
-      if (typeof row[4] === "string") {
-        const C = row[3];
-        const op2 = row[4];
-        const D = row[5];
-        const op3 = row[6];
-
-        const c = F(C[0], C[1]);
-        const d = F(D[0], D[1]);
-
-        const second = op2 === "*" ? mul(first, c.f) : div(first, c.f);
-
-        ans =
-          op3 === "+"
-            ? add(second, d.f)
-            : op3 === "-"
-              ? sub(second, d.f)
-              : op3 === "*"
-                ? mul(second, d.f)
-                : div(second, d.f);
-
-        const s2 = op2 === "*" ? "*" : "/";
-        const s3 = op3 === "+" ? "+" : op3 === "-" ? "−" : op3 === "*" ? "*" : "/";
-
-        expressionText = `((${a.text} ${s1} ${b.text}) ${s2} ${c.text}) ${s3} ${d.text}`;
-        expressionHTML = `((${a.html} ${s1} ${b.html}) ${s2} ${c.html}) ${s3} ${d.html}`;
-      } else {
-        // Form 2: (a +/- b) * (c +/- d)
-        const C = row[3];
-        const D = row[4];
-        const op2 = row[5];
-        const op3 = row[6];
-
-        const c = F(C[0], C[1]);
-        const d = F(D[0], D[1]);
-
-        const second = op2 === "+" ? add(c.f, d.f) : sub(c.f, d.f);
-        ans = op3 === "*" ? mul(first, second) : div(first, second);
-
-        const s2 = op2 === "+" ? "+" : "−";
-        const s3 = op3 === "*" ? "*" : "/";
-
-        expressionText = `(${a.text} ${s1} ${b.text}) ${s3} (${c.text} ${s2} ${d.text})`;
-        expressionHTML = `(${a.html} ${s1} ${b.html}) ${s3} (${c.html} ${s2} ${d.html})`;
-      }
-
-      id += 1;
-
-      bank.push(P({
-        id: `F${String(id).padStart(3, "0")}`,
-        difficulty: "hard",
-        steps: 3,
-        expressionText,
-        expressionHTML,
-        answer: ans
-      }));
-    }
-
-    if (bank.length !== CONFIG.bankSize) {
-      throw new Error(`Problem bank should contain ${CONFIG.bankSize} problems but contains ${bank.length}.`);
-    }
-
-    for (const p of bank) {
-      if (p.correctDenominator <= 0) {
-        throw new Error(`Bad denominator in ${p.id}`);
-      }
-
-      const g = gcd(p.correctNumerator, p.correctDenominator);
-
-      if (g !== 1) {
-        throw new Error(`Unreduced answer in ${p.id}`);
-      }
-    }
-
-    return bank;
+  function opFunc(op) {
+    if (op === "+") return add;
+    if (op === "-") return sub;
+    if (op === "*") return mul;
+    if (op === "/") return div;
+    throw new Error(`Unknown operator: ${op}`);
   }
+
+  function opHTML(op) {
+    if (op === "+") return "+";
+    if (op === "-") return "−";
+    if (op === "*") return "×";
+    if (op === "/") return "÷";
+    throw new Error(`Unknown operator: ${op}`);
+  }
+
+  function nextId() {
+    id += 1;
+    return `P${String(id).padStart(3, "0")}`;
+  }
+
+  function makeOne(difficulty, A, op, B) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const ans = opFunc(op)(a.f, b.f);
+
+    bank.push(P({
+      id: nextId(),
+      difficulty,
+      steps: 1,
+      expressionText: `${a.text} ${op} ${b.text}`,
+      expressionHTML: `${a.html} ${opHTML(op)} ${b.html}`,
+      answer: ans
+    }));
+  }
+
+  function makeTwo(difficulty, A, op1, B, op2, C) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const c = F(C[0], C[1]);
+
+    const mid = opFunc(op1)(a.f, b.f);
+    const ans = opFunc(op2)(mid, c.f);
+
+    bank.push(P({
+      id: nextId(),
+      difficulty,
+      steps: 2,
+      expressionText: `(${a.text} ${op1} ${b.text}) ${op2} ${c.text}`,
+      expressionHTML: `(${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}`,
+      answer: ans
+    }));
+  }
+
+  function makeThreeChain(difficulty, A, op1, B, op2, C, op3, D) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const c = F(C[0], C[1]);
+    const d = F(D[0], D[1]);
+
+    const mid1 = opFunc(op1)(a.f, b.f);
+    const mid2 = opFunc(op2)(mid1, c.f);
+    const ans = opFunc(op3)(mid2, d.f);
+
+    bank.push(P({
+      id: nextId(),
+      difficulty,
+      steps: 3,
+      expressionText: `((${a.text} ${op1} ${b.text}) ${op2} ${c.text}) ${op3} ${d.text}`,
+      expressionHTML: `((${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}) ${opHTML(op3)} ${d.html}`,
+      answer: ans
+    }));
+  }
+
+  function makeThreePair(difficulty, A, op1, B, opFinal, C, op2, D) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const c = F(C[0], C[1]);
+    const d = F(D[0], D[1]);
+
+    const left = opFunc(op1)(a.f, b.f);
+    const right = opFunc(op2)(c.f, d.f);
+    const ans = opFunc(opFinal)(left, right);
+
+    bank.push(P({
+      id: nextId(),
+      difficulty,
+      steps: 3,
+      expressionText: `(${a.text} ${op1} ${b.text}) ${opFinal} (${c.text} ${op2} ${d.text})`,
+      expressionHTML: `(${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(opFinal)} (${c.html} ${opHTML(op2)} ${d.html})`,
+      answer: ans
+    }));
+  }
+
+  // ============================================================
+  // EASY: 15 one-step problems
+  // ============================================================
+  makeOne("easy", [1, 2], "+", [1, 4]);
+  makeOne("easy", [3, 5], "+", [1, 5]);
+  makeOne("easy", [2, 3], "+", [1, 6]);
+  makeOne("easy", [5, 6], "-", [1, 3]);
+  makeOne("easy", [7, 8], "-", [1, 4]);
+  makeOne("easy", [3, 4], "-", [1, 2]);
+  makeOne("easy", [2, 3], "*", [3, 4]);
+  makeOne("easy", [3, 5], "*", [5, 6]);
+  makeOne("easy", [4, 7], "*", [7, 8]);
+  makeOne("easy", [1, 2], "/", [1, 4]);
+  makeOne("easy", [3, 4], "/", [1, 2]);
+  makeOne("easy", [2, 3], "/", [1, 3]);
+  makeOne("easy", [5, 6], "+", [1, 12]);
+  makeOne("easy", [9, 10], "-", [2, 5]);
+  makeOne("easy", [5, 8], "+", [1, 4]);
+
+  // ============================================================
+  // MEDIUM: 20 two-step problems
+  // ============================================================
+  makeTwo("medium", [2, 3], "+", [1, 4], "*", [3, 5]);
+  makeTwo("medium", [5, 6], "-", [1, 3], "/", [2, 5]);
+  makeTwo("medium", [3, 4], "+", [2, 5], "*", [4, 7]);
+  makeTwo("medium", [7, 8], "-", [1, 2], "*", [5, 6]);
+  makeTwo("medium", [1, 2], "+", [3, 8], "/", [4, 5]);
+  makeTwo("medium", [4, 7], "+", [1, 2], "*", [7, 10]);
+  makeTwo("medium", [9, 10], "-", [1, 5], "/", [5, 7]);
+  makeTwo("medium", [5, 8], "+", [1, 4], "*", [4, 9]);
+  makeTwo("medium", [11, 12], "-", [1, 6], "/", [3, 5]);
+  makeTwo("medium", [2, 9], "+", [5, 6], "*", [3, 8]);
+  makeTwo("medium", [13, 15], "-", [2, 5], "*", [9, 11]);
+  makeTwo("medium", [5, 12], "+", [7, 18], "*", [6, 13]);
+  makeTwo("medium", [7, 10], "-", [1, 5], "/", [4, 9]);
+  makeTwo("medium", [3, 16], "+", [5, 12], "/", [8, 15]);
+  makeTwo("medium", [19, 24], "-", [7, 12], "*", [3, 4]);
+  makeTwo("medium", [5, 18], "+", [7, 9], "*", [9, 14]);
+  makeTwo("medium", [14, 15], "-", [2, 3], "/", [3, 8]);
+  makeTwo("medium", [1, 6], "+", [5, 8], "*", [9, 10]);
+  makeTwo("medium", [5, 9], "-", [1, 6], "/", [7, 12]);
+  makeTwo("medium", [7, 15], "+", [2, 9], "/", [5, 11]);
+
+  // ============================================================
+  // HARD: 15 three-step problems
+  // ============================================================
+  makeThreeChain("hard", [1, 2], "+", [1, 3], "*", [3, 4], "/", [2, 5]);
+  makeThreePair("hard", [3, 4], "-", [1, 2], "*", [1, 3], "+", [1, 6]);
+  makeThreeChain("hard", [2, 3], "+", [1, 4], "*", [6, 7], "/", [3, 5]);
+  makeThreePair("hard", [5, 6], "-", [1, 4], "*", [2, 3], "+", [1, 6]);
+  makeThreeChain("hard", [3, 4], "/", [2, 5], "-", [1, 3], "*", [3, 2]);
+  makeThreeChain("hard", [7, 8], "-", [1, 2], "*", [5, 6], "+", [3, 10]);
+  makeThreeChain("hard", [2, 9], "+", [5, 6], "*", [3, 8], "/", [1, 4]);
+  makeThreeChain("hard", [17, 20], "-", [3, 10], "/", [2, 11], "-", [1, 5]);
+  makeThreeChain("hard", [13, 15], "-", [2, 5], "*", [9, 11], "+", [3, 10]);
+  makeThreeChain("hard", [5, 12], "+", [7, 18], "*", [6, 13], "/", [2, 9]);
+  makeThreeChain("hard", [7, 10], "-", [1, 5], "/", [4, 9], "+", [1, 8]);
+  makeThreeChain("hard", [3, 16], "+", [5, 12], "/", [8, 15], "-", [3, 5]);
+  makeThreePair("hard", [19, 24], "-", [7, 12], "*", [3, 4], "+", [1, 6]);
+  makeThreeChain("hard", [5, 18], "+", [7, 9], "*", [9, 14], "/", [1, 3]);
+  makeThreeChain("hard", [14, 15], "-", [2, 3], "/", [3, 8], "+", [2, 9]);
+
+  if (bank.length !== CONFIG.bankSize) {
+    throw new Error(`Problem bank should contain ${CONFIG.bankSize} problems but contains ${bank.length}.`);
+  }
+
+  for (const p of bank) {
+    if (p.correctDenominator <= 0) {
+      throw new Error(`Bad denominator in ${p.id}`);
+    }
+
+    const g = gcd(p.correctNumerator, p.correctDenominator);
+
+    if (g !== 1) {
+      throw new Error(`Unreduced answer in ${p.id}`);
+    }
+  }
+
+  return bank;
+}
 
   // ============================================================
   // SCREENS
