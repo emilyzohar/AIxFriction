@@ -24,7 +24,8 @@
     ratings: [],
     events: [],
     _eventIndex: 0,
-    _trialIndex: 0
+    _trialIndex: 0,
+    consent: null
   };
 
   // ============================================================
@@ -291,28 +292,33 @@ function rawFracHTML(n, d, forceFraction = false) {
       const x = F(a,b);
       const y = F(c,d);
 
-      let ans;
-      let symbol;
+     let ans;
+let symbolText;
+let symbolHTML;
 
-      if (op === "+") {
-        ans = add(x.f, y.f);
-        symbol = "+";
-      }
+if (op === "+") {
+  ans = add(x.f, y.f);
+  symbolText = "+";
+  symbolHTML = "+";
+}
 
-      if (op === "-") {
-        ans = sub(x.f, y.f);
-        symbol = "−";
-      }
+if (op === "-") {
+  ans = sub(x.f, y.f);
+  symbolText = "-";
+  symbolHTML = "−";
+}
 
-      if (op === "*") {
-        ans = mul(x.f, y.f);
-        symbol = "×";
-      }
+if (op === "*") {
+  ans = mul(x.f, y.f);
+  symbolText = "*";
+  symbolHTML = "×";
+}
 
-      if (op === "/") {
-        ans = div(x.f, y.f);
-        symbol = "÷";
-      }
+if (op === "/") {
+  ans = div(x.f, y.f);
+  symbolText = "/";
+  symbolHTML = "÷";
+}
 
       id += 1;
 
@@ -320,8 +326,8 @@ function rawFracHTML(n, d, forceFraction = false) {
         id: `F${String(id).padStart(3, "0")}`,
         difficulty: op === "+" || op === "-" ? "easy" : "easy-medium",
         steps: 1,
-        expressionText: `${x.text} ${symbol} ${y.text}`,
-        expressionHTML: `${x.html} ${symbol} ${y.html}`,
+        expressionText: `${x.text} ${symbolText} ${y.text}`,
+        expressionHTML: `${x.html} ${symbolHTML} ${y.html}`,
         answer: ans
       }));
     }
@@ -353,7 +359,7 @@ function rawFracHTML(n, d, forceFraction = false) {
       const ans = op2 === "*" ? mul(mid, c.f) : div(mid, c.f);
 
       const s1 = op1 === "+" ? "+" : "−";
-      const s2 = op2 === "*" ? "×" : "÷";
+      const s2 = op2 === "*" ? "*" : "/";
 
       id += 1;
 
@@ -436,8 +442,8 @@ function rawFracHTML(n, d, forceFraction = false) {
                 ? mul(second, d.f)
                 : div(second, d.f);
 
-        const s2 = op2 === "*" ? "×" : "÷";
-        const s3 = op3 === "+" ? "+" : op3 === "-" ? "−" : op3 === "*" ? "×" : "÷";
+        const s2 = op2 === "*" ? "*" : "/";
+        const s3 = op3 === "+" ? "+" : op3 === "-" ? "−" : op3 === "*" ? "*" : "/";
 
         expressionText = `((${a.text} ${s1} ${b.text}) ${s2} ${c.text}) ${s3} ${d.text}`;
         expressionHTML = `((${a.html} ${s1} ${b.html}) ${s2} ${c.html}) ${s3} ${d.html}`;
@@ -455,7 +461,7 @@ function rawFracHTML(n, d, forceFraction = false) {
         ans = op3 === "*" ? mul(first, second) : div(first, second);
 
         const s2 = op2 === "+" ? "+" : "−";
-        const s3 = op3 === "*" ? "×" : "÷";
+        const s3 = op3 === "*" ? "*" : "/";
 
         expressionText = `(${a.text} ${s1} ${b.text}) ${s3} (${c.text} ${s2} ${d.text})`;
         expressionHTML = `(${a.html} ${s1} ${b.html}) ${s3} (${c.html} ${s2} ${d.html})`;
@@ -495,6 +501,136 @@ function rawFracHTML(n, d, forceFraction = false) {
   // ============================================================
   // SCREENS
   // ============================================================
+  async function consentScreen() {
+  state.phase = "consent";
+  setHeader("Consent Form");
+  setFooter("", "");
+  logEvent("consent_screen");
+
+  render(html(`
+    <div class="notice">
+      <div><b>Welcome!</b></div>
+      <div class="small">
+        This study is conducted by the Department of Psychology at the University of Toronto Scarborough (UTSC).
+        We are interested in how people solve fraction problems and evaluate their own performance.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>UNIVERSITY OF TORONTO SCARBOROUGH: INFORMED CONSENT STATEMENT</b></div>
+      <div class="small">
+        <b>Principal Investigator:</b> Dr. Michael Inzlicht, Professor<br>
+        <b>Researcher:</b> Emily Zohar<br>
+        <b>Project:</b> Fraction Problem Solving and Judgment
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Information</b></div>
+      <div class="small">
+        You are invited to participate in a research study. The purpose of this study is to understand how people solve fraction problems and how they judge the difficulty and achievability of those problems.
+        In this study, you will complete a set of fraction problems. After each problem, you will be asked to rate how difficult and achievable the problem felt.
+        The study will take approximately 30 minutes. You will receive <b>0.5 course credit</b> for your participation.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Risks</b></div>
+      <div class="small">
+        There are no foreseeable risks involved in participating in this study beyond those encountered in everyday computer-based tasks. Some fraction problems may feel difficult or frustrating, but you may stop participating at any time.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Benefits</b></div>
+      <div class="small">
+        There are no direct benefits to participation beyond compensation. The results may help researchers better understand mathematical problem solving and people’s judgments about their own performance.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Confidentiality</b></div>
+      <div class="small">
+        Your responses will be kept confidential. Your research records will be assigned a code number rather than your name.
+        The results of this study may be reported in conference presentations, journal articles, or other scientific reports.
+        Individual participants will not be identified in any reports; only aggregated data will be reported.
+        Data will be stored securely and accessed only by the research supervisor and authorized researchers.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Compensation</b></div>
+      <div class="small">
+        You will receive <b>0.5 course credit</b> for participating. If you begin the study but choose to withdraw before completing it, you will still receive the available course credit.
+        Once your anonymous responses have been submitted, they may not be withdrawable because they are not linked to identifying information.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Contact</b></div>
+      <div class="small">
+        If you have questions about the study or procedures, you may contact Emily Zohar, the lead researcher,
+        at <b>emily.zohar@mail.utoronto.ca</b>.
+        <br><br>
+        This project has been reviewed and approved by the University of Toronto Research Ethics Board.
+        If you feel you have not been treated according to the descriptions in this form, or your rights as a participant in research have been violated, you may contact the University of Toronto Research Ethics Board at
+        <b>ethics.review@utoronto.ca</b>.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Participation</b></div>
+      <div class="small">
+        Your participation is completely voluntary. You may withdraw from the study at any time without penalty or loss of benefits to which you are entitled.
+        You are also free to omit the answer to any question where possible.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Feedback &amp; Publication</b></div>
+      <div class="small">
+        If you are interested in viewing the results of this study, please contact Emily Zohar at <b>
+        <b>emily.zohar@mail.utoronto.ca</b>.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Consent</b></div>
+      <div class="small">
+        By clicking “I agree,” you confirm that you have read and understood the above information and agree to participate in this study.
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>Consent to Have Data Uploaded to a Research Database</b></div>
+      <div class="small">
+        By clicking “I agree,” you also agree to have your de-identified data made available in a research database that may be accessed by members of the scientific and psychological academic community.
+        The shared data will not include personally identifiable information.
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btnConsentAgree" class="btn">I agree</button>
+      <button id="btnConsentDisagree" class="btn">I disagree</button>
+    </div>
+  `));
+
+  const agreed = await new Promise(resolve => {
+    $("btnConsentAgree").onclick = () => resolve(true);
+    $("btnConsentDisagree").onclick = () => resolve(false);
+  });
+
+  state.consent = {
+    kind: "consent",
+    participantId: state.participantId,
+    timestampISO: new Date().toISOString(),
+    agreed: agreed ? 1 : 0
+  };
+
+  logEvent("consent_response", { agreed: agreed ? 1 : 0 });
+
+  return agreed;
+}
   async function instructionsScreen() {
     state.phase = "instructions";
     setHeader("Instructions");
@@ -756,25 +892,42 @@ attachCalculatorHandlers();
     const correct = sameFrac(parsed.value, correctFrac);
 
     const trialRow = {
-      kind: "fraction_trial",
-      participantId: state.participantId,
-      trialIndex: state._trialIndex,
-      timestampISO: new Date().toISOString(),
-      problemId: problem.id,
-      trialNumber,
-      difficulty: problem.difficulty,
-      steps: problem.steps,
-      expressionText: problem.expressionText,
-      correctText: problem.correctText,
-      correctNumerator: problem.correctNumerator,
-      correctDenominator: problem.correctDenominator,
-      responseRaw: String(answerRaw || "").trim(),
-      responseNormalized: parsed.normalized,
-      responseNumerator: parsed.value.n,
-      responseDenominator: parsed.value.d,
-      correct: correct ? 1 : 0,
-      responseRTms: rtMs
-    };
+  kind: "fraction_trial",
+  participantId: state.participantId,
+  trialIndex: state._trialIndex,
+  timestampISO: new Date().toISOString(),
+
+  problemId: problem.id,
+  trialNumber,
+  difficulty: problem.difficulty,
+  steps: problem.steps,
+
+  // Use plain ASCII math for CSV so Excel does not mangle symbols like −, ×, ÷
+  expressionText: asciiMathText(problem.expressionText),
+
+  // Raw fraction text for analysis / R
+  correctTextRaw: problem.correctText,
+
+  // Excel-safe display version so 3/10 does not become 10-Mar
+  correctTextExcel: excelText(problem.correctText),
+
+  // Best columns for analysis
+  correctNumerator: problem.correctNumerator,
+  correctDenominator: problem.correctDenominator,
+
+  // Participant response
+  responseRaw: String(answerRaw || "").trim(),
+  responseRawExcel: excelText(String(answerRaw || "").trim()),
+
+  responseNormalizedRaw: parsed.normalized,
+  responseNormalizedExcel: excelText(parsed.normalized),
+
+  responseNumerator: parsed.value.n,
+  responseDenominator: parsed.value.d,
+
+  correct: correct ? 1 : 0,
+  responseRTms: rtMs
+};
 
     state.trials.push(trialRow);
 
@@ -836,6 +989,10 @@ attachCalculatorHandlers();
     return rec;
   }
 
+  function redirectToSONA() {
+  window.location.href =
+    `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1317&credit_token=d4d36918ef934798be0bf69a79e33722&survey_code=${state.participantId}`;
+}
   async function likertScreen({ construct, question, left, right, problem, trialNumber }) {
     setHeader(`Rating ${trialNumber} of ${CONFIG.nTrials}`);
     setFooter("Use number keys 1–7", "");
@@ -910,7 +1067,21 @@ attachCalculatorHandlers();
       await runFractionTrial(state.selectedProblems[i], i + 1);
     }
   }
+function asciiMathText(s) {
+  return String(s ?? "")
+    .replace(/−/g, "-")
+    .replace(/×/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/\u00A0/g, " ");
+}
 
+// For fields that Excel might interpret as dates, e.g., 3/10.
+// This makes Excel display the fraction as text.
+function excelText(s) {
+  const v = String(s ?? "");
+  if (v === "") return "";
+  return `="${v.replace(/"/g, '""')}"`;
+}
   // ============================================================
   // CSV + DATAPIPE
   // ============================================================
@@ -926,6 +1097,10 @@ attachCalculatorHandlers();
       bankSize: CONFIG.bankSize,
       selectedProblemIds: state.selectedProblems.map(p => p.id).join(";")
     });
+
+     if (state.consent) {
+    rows.push(state.consent);
+  }
 
     for (const e of state.events) {
       rows.push(e);
@@ -955,6 +1130,7 @@ attachCalculatorHandlers();
       "kind",
       "participantId",
       "timestampISO",
+      "agreed",
       "eventIndex",
       "type",
       "trialIndex",
@@ -963,13 +1139,16 @@ attachCalculatorHandlers();
       "difficulty",
       "steps",
       "expressionText",
-      "correctText",
-      "correctNumerator",
-      "correctDenominator",
-      "responseRaw",
-      "responseNormalized",
-      "responseNumerator",
-      "responseDenominator",
+      "correctTextRaw",
+"correctTextExcel",
+"correctNumerator",
+"correctDenominator",
+"responseRaw",
+"responseRawExcel",
+"responseNormalizedRaw",
+"responseNormalizedExcel",
+"responseNumerator",
+"responseDenominator",
       "correct",
       "responseRTms",
       "subjectiveDifficulty",
@@ -993,10 +1172,10 @@ attachCalculatorHandlers();
         : s;
     };
 
-    return [
-      headers.join(","),
-      ...rows.map(r => headers.map(h => esc(r[h])).join(","))
-    ].join("\n");
+    return "\uFEFF" + [
+  headers.join(","),
+  ...rows.map(r => headers.map(h => esc(r[h])).join(","))
+].join("\n");
   }
 
   async function saveCSVToPipe({ experimentID, filename, csvString }) {
@@ -1064,9 +1243,8 @@ attachCalculatorHandlers();
 
       await wait(600);
 
-      window.location.href =
-      `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1317&credit_token=d4d36918ef934798be0bf69a79e33722&survey_code=${state.participantId}`;
-  } catch (e) {
+     redirectToSONA();
+    } catch (e) {
       console.error(e);
 
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -1099,15 +1277,40 @@ attachCalculatorHandlers();
     }
   }
 
+  async function endNoConsentScreen() {
+  state.phase = "end_no_consent";
+  setHeader("Finished");
+  setFooter("", "");
+
+  render(html(`
+    <div class="notice">
+      <div><b>You did not consent to participate.</b></div>
+      <div class="small">
+        You will now be redirected for course credit.
+      </div>
+    </div>
+  `));
+
+  await wait(800);
+  redirectToSONA();
+}
   // ============================================================
   // BOOT
   // ============================================================
   async function boot() {
-    initStudy();
-    await instructionsScreen();
-    await runTask();
-    await endScreen();
+  initStudy();
+
+  const agreed = await consentScreen();
+
+  if (!agreed) {
+    await endNoConsentScreen();
+    return;
   }
+
+  await instructionsScreen();
+  await runTask();
+  await endScreen();
+}
 
   boot();
 })();
