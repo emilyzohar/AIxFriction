@@ -1065,7 +1065,7 @@ attachCalculatorHandlers();
       await wait(600);
 
       window.location.href =
-      `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1308&credit_token=583ce639555b456bbf452fad6db133a4&survey_code=${state.participantId}`;
+      `https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1317&credit_token=d4d36918ef934798be0bf69a79e33722&survey_code=${state.participantId}`;
   } catch (e) {
       console.error(e);
 
