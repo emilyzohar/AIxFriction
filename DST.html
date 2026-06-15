@@ -1,0 +1,1524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fraction Demand Selection Task</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --good: #047857;
+      --bad: #b91c1c;
+      --button: #111827;
+      --buttonText: #ffffff;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    .shell {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 28px 18px 80px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: baseline;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0;
+      font-weight: 750;
+    }
+
+    #subheader {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+
+    .notice {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px;
+      margin: 14px 0;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      background: var(--button);
+      color: var(--buttonText);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 16px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .btn.secondary {
+      background: #ffffff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn.large {
+      min-width: 230px;
+      min-height: 72px;
+      font-size: 18px;
+    }
+
+    .btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .input {
+      width: min(420px, 100%);
+      font-size: 20px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .small { font-size: 14px; }
+    .muted { color: var(--muted); }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .hr { height: 1px; background: var(--border); margin: 16px 0; }
+
+    .math {
+      font-size: 34px;
+      line-height: 1.5;
+      margin: 10px 0;
+    }
+
+    .frac sup { font-size: .72em; vertical-align: .45em; }
+    .frac sub { font-size: .72em; vertical-align: -.15em; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+      color: var(--muted);
+      background: #fff;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 14px;
+    }
+
+    .choiceGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .choiceCard {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0;
+  background: #fff;
+  overflow: hidden;
+  min-height: 220px;
+}
+
+.choiceButton {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.completeButton {
+  background: #d93025;
+  color: white;
+}
+
+.completeButton:hover {
+  background: #b3261e;
+}
+
+.answerButton {
+  background: #1a73e8;
+  color: white;
+}
+
+.answerButton:hover {
+  background: #1558b0;
+}
+
+
+    .choiceTitle {
+      font-weight: 750;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .calculator-panel-fixed {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: 250px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 6px 22px rgba(0,0,0,.12);
+      z-index: 10;
+    }
+
+    .calc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .calc-key {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 0;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .calc-input {
+      width: calc(100% - 24px);
+      font-size: 16px;
+      padding: 8px 10px;
+      margin-top: 8px;
+    }
+
+    .calc-result {
+      min-height: 24px;
+      font-size: 18px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 760px) {
+      .calculator-panel-fixed {
+        position: static;
+        width: auto;
+        margin-top: 18px;
+      }
+      .math { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <h1>Fraction Study</h1>
+      <div id="subheader"></div>
+    </div>
+    <main id="content" class="card"></main>
+    <div class="footer">
+      <div id="leftFooter"></div>
+      <div id="rightFooter"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  // ============================================================
+  // CONFIG: EDIT THESE BEFORE LAUNCHING
+  // ============================================================
+  const CONFIG = {
+    experimentID: "QgzXmzXwxYHB", // DataPipe experiment ID
+    completionRedirectURL: "https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1317&credit_token=d4d36918ef934798be0bf69a79e33722&survey_code={participantId}",
+    nPracticeTrials: 5,
+    nDSTTrials: 20,
+    feedbackMs: 900,
+    revealAnswerMs: 1800,
+    allowMixedNumbers: true,
+    downloadCSVOnPipeFailure: true
+  };
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  const state = {
+    participantId: null,
+    startedAtISO: null,
+    phase: null,
+    events: [],
+    practiceRows: [],
+    dstChoiceRows: [],
+    dstPerformanceRows: [],
+    selectedPracticeProblems: [],
+    selectedDSTProblems: [],
+    consent: null,
+    _eventIndex: 0
+  };
+
+  // ============================================================
+  // BASIC HELPERS
+  // ============================================================
+  function getURLParams() {
+    const sp = new URLSearchParams(window.location.search);
+    return {
+      participantId:
+        sp.get("id") ||
+        sp.get("PROLIFIC_PID") ||
+        sp.get("participantId") ||
+        crypto.randomUUID()
+    };
+  }
+
+  function initStudy() {
+    const { participantId } = getURLParams();
+    state.participantId = participantId;
+    state.startedAtISO = new Date().toISOString();
+    logEvent("study_start", { participantId });
+  }
+
+  function logEvent(type, payload = {}) {
+    state._eventIndex += 1;
+    state.events.push({
+      kind: "event",
+      participantId: state.participantId,
+      eventIndex: state._eventIndex,
+      timestampISO: new Date().toISOString(),
+      type,
+      ...payload
+    });
+  }
+
+  function now() { return performance.now(); }
+  function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  function shuffledCopy(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function escapeHTML(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function html(s) {
+    const d = document.createElement("div");
+    d.innerHTML = s;
+    return d;
+  }
+
+  function clearContent() { $("content").innerHTML = ""; }
+  function render(node) { clearContent(); $("content").appendChild(node); }
+  function setHeader(text) { $("subheader").textContent = text || ""; }
+  function setFooter(left = "", right = "") {
+    $("leftFooter").textContent = left || "";
+    $("rightFooter").textContent = right || "";
+  }
+
+  function asciiMathText(s) {
+    return String(s ?? "")
+      .replace(/−/g, "-")
+      .replace(/×/g, "*")
+      .replace(/÷/g, "/")
+      .replace(/\u00A0/g, " ");
+  }
+
+  function excelText(s) {
+    const v = String(s ?? "");
+    if (v === "") return "";
+    return `="${v.replace(/"/g, '""')}"`;
+  }
+
+  // ============================================================
+  // EXACT FRACTION ARITHMETIC
+  // ============================================================
+  function gcd(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b !== 0) {
+      const t = b;
+      b = a % b;
+      a = t;
+    }
+    return a || 1;
+  }
+
+  function frac(n, d = 1) {
+    if (d === 0) throw new Error("Zero denominator");
+    if (d < 0) { n = -n; d = -d; }
+    const g = gcd(n, d);
+    return { n: n / g, d: d / g };
+  }
+
+  function add(a, b) { return frac(a.n * b.d + b.n * a.d, a.d * b.d); }
+  function sub(a, b) { return frac(a.n * b.d - b.n * a.d, a.d * b.d); }
+  function mul(a, b) { return frac(a.n * b.n, a.d * b.d); }
+  function div(a, b) { return frac(a.n * b.d, a.d * b.n); }
+
+  function sameFrac(a, b) { return a && b && a.n === b.n && a.d === b.d; }
+
+  function fracText(f) {
+    if (!f) return "";
+    if (f.d === 1) return String(f.n);
+    return `${f.n}/${f.d}`;
+  }
+
+  function rawFracHTML(n, d, forceFraction = false) {
+    if (d === 1 && !forceFraction) return String(n);
+    return `<span class="frac"><sup>${n}</sup>&frasl;<sub>${d}</sub></span>`;
+  }
+
+  function fracHTML(f) {
+    if (!f) return "";
+    if (f.d === 1) return String(f.n);
+    return rawFracHTML(f.n, f.d);
+  }
+
+  function parseFractionInput(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return { ok: false, error: "Please enter an answer." };
+    if (s.includes(".")) return { ok: false, error: "Decimals are not allowed. Enter a whole number or fraction." };
+
+    if (/^-?\d+$/.test(s)) {
+      return { ok: true, value: frac(Number(s), 1), normalized: String(Number(s)) };
+    }
+
+    let m = s.match(/^(-?\d+)\s*\/\s*(-?\d+)$/);
+    if (m) {
+      const n = Number(m[1]);
+      const d = Number(m[2]);
+      if (d === 0) return { ok: false, error: "The denominator cannot be 0." };
+      const f = frac(n, d);
+      return { ok: true, value: f, normalized: fracText(f) };
+    }
+
+    if (CONFIG.allowMixedNumbers) {
+      m = s.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+      if (m) {
+        const whole = Number(m[1]);
+        const n = Number(m[2]);
+        const d = Number(m[3]);
+        if (d === 0) return { ok: false, error: "The denominator cannot be 0." };
+        const sign = whole < 0 ? -1 : 1;
+        const improper = frac(sign * (Math.abs(whole) * d + n), d);
+        return { ok: true, value: improper, normalized: fracText(improper) };
+      }
+    }
+
+    return {
+      ok: false,
+      error: CONFIG.allowMixedNumbers
+        ? "Use a whole number, fraction, or mixed number, such as 2, 3/4, or 1 1/2."
+        : "Use a whole number or fraction, such as 2 or 3/4."
+    };
+  }
+
+  // ============================================================
+  // PROBLEM CREATION
+  // ============================================================
+  function F(n, d) {
+    const f = frac(n, d);
+    return { f, text: fracText(f), html: fracHTML(f) };
+  }
+
+  function opFunc(op) {
+    if (op === "+") return add;
+    if (op === "-") return sub;
+    if (op === "*") return mul;
+    if (op === "/") return div;
+    throw new Error(`Unknown operator: ${op}`);
+  }
+
+  function opHTML(op) {
+    if (op === "+") return "+";
+    if (op === "-") return "−";
+    if (op === "*") return "×";
+    if (op === "/") return "÷";
+    throw new Error(`Unknown operator: ${op}`);
+  }
+
+  function makeOne(id, difficulty, A, op, B) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const answer = opFunc(op)(a.f, b.f);
+    return {
+      id,
+      difficulty,
+      steps: 1,
+      expressionText: `${a.text} ${op} ${b.text}`,
+      expressionHTML: `${a.html} ${opHTML(op)} ${b.html}`,
+      correctNumerator: answer.n,
+      correctDenominator: answer.d,
+      correctText: fracText(answer)
+    };
+  }
+
+  function makeTwo(id, difficulty, A, op1, B, op2, C) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const c = F(C[0], C[1]);
+    const mid = opFunc(op1)(a.f, b.f);
+    const answer = opFunc(op2)(mid, c.f);
+    return {
+      id,
+      difficulty,
+      steps: 2,
+      expressionText: `(${a.text} ${op1} ${b.text}) ${op2} ${c.text}`,
+      expressionHTML: `(${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}`,
+      correctNumerator: answer.n,
+      correctDenominator: answer.d,
+      correctText: fracText(answer)
+    };
+  }
+
+  function makeThreeChain(id, difficulty, A, op1, B, op2, C, op3, D) {
+    const a = F(A[0], A[1]);
+    const b = F(B[0], B[1]);
+    const c = F(C[0], C[1]);
+    const d = F(D[0], D[1]);
+    const mid1 = opFunc(op1)(a.f, b.f);
+    const mid2 = opFunc(op2)(mid1, c.f);
+    const answer = opFunc(op3)(mid2, d.f);
+    return {
+      id,
+      difficulty,
+      steps: 3,
+      expressionText: `((${a.text} ${op1} ${b.text}) ${op2} ${c.text}) ${op3} ${d.text}`,
+      expressionHTML: `((${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}) ${opHTML(op3)} ${d.html}`,
+      correctNumerator: answer.n,
+      correctDenominator: answer.d,
+      correctText: fracText(answer)
+    };
+  }
+
+  function generatePracticeBank() {
+    return [
+      makeOne("PRAC_E1", "easy", [1,2], "+", [1,4]),
+      makeOne("PRAC_E2", "easy", [3,4], "-", [1,2]),
+      makeTwo("PRAC_M1", "medium", [2,3], "+", [1,4], "*", [3,5]),
+      makeTwo("PRAC_M2", "medium", [5,6], "-", [1,3], "/", [2,5]),
+      makeThreeChain("PRAC_H1", "hard", [1,2], "+", [1,3], "*", [3,4], "/", [2,5])
+    ];
+  }
+
+  function generateDSTHardBank() {
+    return [
+      makeThreeChain("DST_H001", "hard", [1,2], "+", [1,3], "*", [3,4], "/", [2,5]),
+      makeThreeChain("DST_H002", "hard", [2,3], "+", [1,4], "*", [6,7], "/", [3,5]),
+      makeThreeChain("DST_H003", "hard", [3,4], "/", [2,5], "-", [1,3], "*", [3,2]),
+      makeThreeChain("DST_H004", "hard", [7,8], "-", [1,2], "*", [5,6], "+", [3,10]),
+      makeThreeChain("DST_H005", "hard", [2,9], "+", [5,6], "*", [3,8], "/", [1,4]),
+      makeThreeChain("DST_H006", "hard", [17,20], "-", [3,10], "/", [2,11], "-", [1,5]),
+      makeThreeChain("DST_H007", "hard", [13,15], "-", [2,5], "*", [9,11], "+", [3,10]),
+      makeThreeChain("DST_H008", "hard", [5,12], "+", [7,18], "*", [6,13], "/", [2,9]),
+      makeThreeChain("DST_H009", "hard", [7,10], "-", [1,5], "/", [4,9], "+", [1,8]),
+      makeThreeChain("DST_H010", "hard", [3,16], "+", [5,12], "/", [8,15], "-", [3,5]),
+      makeThreeChain("DST_H011", "hard", [5,18], "+", [7,9], "*", [9,14], "/", [1,3]),
+      makeThreeChain("DST_H012", "hard", [14,15], "-", [2,3], "/", [3,8], "+", [2,9]),
+      makeThreeChain("DST_H013", "hard", [4,9], "+", [5,12], "*", [9,10], "/", [3,7]),
+      makeThreeChain("DST_H014", "hard", [11,14], "-", [2,7], "*", [7,9], "+", [5,18]),
+      makeThreeChain("DST_H015", "hard", [8,15], "+", [7,20], "/", [5,6], "-", [1,3]),
+      makeThreeChain("DST_H016", "hard", [9,16], "-", [1,8], "*", [12,13], "/", [3,10]),
+      makeThreeChain("DST_H017", "hard", [5,6], "+", [7,12], "/", [2,3], "-", [3,8]),
+      makeThreeChain("DST_H018", "hard", [7,9], "-", [1,6], "*", [18,11], "+", [2,5]),
+      makeThreeChain("DST_H019", "hard", [13,18], "+", [5,12], "*", [6,7], "/", [4,9]),
+      makeThreeChain("DST_H020", "hard", [19,24], "-", [7,16], "/", [5,8], "+", [1,6]),
+      makeThreeChain("DST_H021", "hard", [3,5], "+", [7,15], "*", [10,11], "/", [4,9]),
+      makeThreeChain("DST_H022", "hard", [11,20], "-", [1,4], "/", [3,5], "+", [2,9]),
+      makeThreeChain("DST_H023", "hard", [7,12], "+", [5,18], "*", [9,8], "-", [1,6]),
+      makeThreeChain("DST_H024", "hard", [15,16], "-", [3,8], "/", [9,10], "+", [1,5]),
+      makeThreeChain("DST_H025", "hard", [2,7], "+", [5,14], "*", [7,6], "/", [3,4])
+    ];
+  }
+
+  function checkProblemBank(bank) {
+    for (const p of bank) {
+      if (p.correctDenominator <= 0) throw new Error(`Bad denominator in ${p.id}`);
+      if (gcd(p.correctNumerator, p.correctDenominator) !== 1) throw new Error(`Unreduced answer in ${p.id}`);
+    }
+  }
+
+  // ============================================================
+  // SIMPLE WHOLE-NUMBER CALCULATOR
+  // ============================================================
+  function safeCalculatorEval(expr) {
+    const cleaned = String(expr || "")
+      .replace(/\s/g, "")
+      .replace(/×/g, "*")
+      .replace(/−/g, "-")
+      .trim();
+
+    if (!cleaned) return { ok: false, error: "Enter one calculation." };
+
+    const m = cleaned.match(/^(\d+)([+\-*÷])(\d+)$/);
+    if (!m) {
+      return { ok: false, error: "Enter one whole-number calculation only, e.g., 7+4 or 20÷5." };
+    }
+
+    const left = Number(m[1]);
+    const op = m[2];
+    const right = Number(m[3]);
+    let result;
+
+    if (op === "+") result = left + right;
+    if (op === "-") result = left - right;
+    if (op === "*") result = left * right;
+    if (op === "÷") {
+      if (right === 0) return { ok: false, error: "Cannot divide by 0." };
+      result = left / right;
+    }
+
+    if (!Number.isFinite(result)) return { ok: false, error: "Invalid calculation." };
+    return { ok: true, result };
+  }
+
+  function showCalculatorPanel() {
+    let panel = document.getElementById("calculatorPanel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "calculatorPanel";
+      panel.className = "calculator-panel-fixed";
+      document.body.appendChild(panel);
+    }
+
+    panel.innerHTML = `
+      <div><b>Calculator</b></div>
+      <div class="small muted">Whole-number scratch calculations only.</div>
+      <input id="calcInput" class="input calc-input" autocomplete="off" placeholder="e.g., 7+4" />
+      <div class="calc-grid">
+        <button type="button" class="calc-key" data-calc-key="7">7</button>
+        <button type="button" class="calc-key" data-calc-key="8">8</button>
+        <button type="button" class="calc-key" data-calc-key="9">9</button>
+        <button type="button" class="calc-key" data-calc-key="÷">÷</button>
+        <button type="button" class="calc-key" data-calc-key="4">4</button>
+        <button type="button" class="calc-key" data-calc-key="5">5</button>
+        <button type="button" class="calc-key" data-calc-key="6">6</button>
+        <button type="button" class="calc-key" data-calc-key="*">×</button>
+        <button type="button" class="calc-key" data-calc-key="1">1</button>
+        <button type="button" class="calc-key" data-calc-key="2">2</button>
+        <button type="button" class="calc-key" data-calc-key="3">3</button>
+        <button type="button" class="calc-key" data-calc-key="-">−</button>
+        <button type="button" class="calc-key" data-calc-key="0">0</button>
+        <button type="button" class="calc-key" data-calc-key="+">+</button>
+        <button type="button" id="btnCalcClear" class="calc-key">clear</button>
+        <button type="button" id="btnCalc" class="calc-key">=</button>
+      </div>
+      <div class="small muted" style="margin-top:8px">Result</div>
+      <div id="calcResult" class="calc-result"></div>
+    `;
+
+    attachCalculatorHandlers();
+  }
+
+  function attachCalculatorHandlers() {
+    const calcInput = $("calcInput");
+    const calcResult = $("calcResult");
+    const calcBtn = $("btnCalc");
+    const calcClear = $("btnCalcClear");
+    if (!calcInput || !calcResult || !calcBtn || !calcClear) return;
+
+    function calculate() {
+      const out = safeCalculatorEval(calcInput.value);
+      if (!out.ok) {
+        calcResult.innerHTML = `<span class="bad">${escapeHTML(out.error)}</span>`;
+        return;
+      }
+      calcResult.innerHTML = `<b>${escapeHTML(String(out.result))}</b>`;
+    }
+
+    calcBtn.onclick = calculate;
+    calcClear.onclick = () => {
+      calcInput.value = "";
+      calcResult.textContent = "";
+      calcInput.focus();
+    };
+    calcInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") calculate();
+    });
+
+    document.querySelectorAll("[data-calc-key]").forEach(btn => {
+      btn.onclick = () => {
+        calcInput.value += btn.getAttribute("data-calc-key");
+        calcInput.focus();
+      };
+    });
+  }
+
+  function hideCalculatorPanel() {
+    const panel = document.getElementById("calculatorPanel");
+    if (panel) panel.remove();
+  }
+
+  // ============================================================
+  // SCREENS
+  // ============================================================
+  async function consentScreen() {
+    state.phase = "consent";
+    setHeader("Consent Form");
+    setFooter("", "");
+    logEvent("consent_screen");
+
+    render(html(`
+      <div class="notice">
+        <div><b>Welcome!</b></div>
+        <div class="small">
+          This study is conducted by the Department of Psychology at the University of Toronto Scarborough (UTSC).
+          We are interested in how people make choices about completing difficult fraction problems.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>UNIVERSITY OF TORONTO SCARBOROUGH: INFORMED CONSENT STATEMENT</b></div>
+        <div class="small">
+          <b>Principal Investigator:</b> Dr. Michael Inzlicht, Professor<br>
+          <b>Researcher:</b> Emily Zohar<br>
+          <b>Project:</b> Fraction Problem Solving and Demand Selection
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Information</b></div>
+        <div class="small">
+          You are invited to participate in a research study. The purpose of this study is to understand
+          how people solve fraction problems and how they decide whether to complete difficult problems
+          themselves or be given the answer.
+          <br><br>
+          In this study, you will read instructions about fractions, complete 5 practice fraction problems,
+          and then complete 20 choice trials. On each choice trial, you will choose whether to complete a
+          hard fraction problem yourself or be given the answer to that problem.
+          <br><br>
+          The study will take approximately 20 to 30 minutes. You will receive <b>0.5 course credit</b> for your participation.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Risks</b></div>
+        <div class="small">
+          There are no foreseeable risks involved in participating in this study beyond those encountered
+          in everyday computer-based tasks. Some fraction problems may feel difficult or frustrating, but
+          you may stop participating at any time.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Benefits</b></div>
+        <div class="small">
+          There are no direct benefits to participation beyond compensation. The results may help researchers
+          better understand mathematical problem solving and decisions about effortful tasks.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Confidentiality</b></div>
+        <div class="small">
+          Your responses will be kept confidential. Your research records will be assigned a code number
+          rather than your name. The results of this study may be reported in conference presentations,
+          journal articles, or other scientific reports. Individual participants will not be identified in any
+          reports; only aggregated data will be reported. Data will be stored securely and accessed only by
+          the research supervisor and authorized researchers.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Compensation</b></div>
+        <div class="small">
+          You will receive <b>0.5 course credit</b> for participating. If you begin the study but choose to
+          withdraw before completing it, you will still receive the available course credit. Once your
+          anonymous responses have been submitted, they may not be withdrawable because they are not
+          linked to identifying information.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Contact</b></div>
+        <div class="small">
+          If you have questions about the study or procedures, you may contact Emily Zohar, the lead researcher,
+          at <b>emily.zohar@mail.utoronto.ca</b>.
+          <br><br>
+          This project has been reviewed and approved by the University of Toronto Research Ethics Board.
+          If you feel you have not been treated according to the descriptions in this form, or your rights as
+          a participant in research have been violated, you may contact the University of Toronto Research
+          Ethics Board at <b>ethics.review@utoronto.ca</b>.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Participation</b></div>
+        <div class="small">
+          Your participation is completely voluntary. You may withdraw from the study at any time without
+          penalty or loss of benefits to which you are entitled. You are also free to omit the answer to any
+          question where possible.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Feedback &amp; Publication</b></div>
+        <div class="small">
+          If you are interested in viewing the results of this study, please contact Emily Zohar at
+          <b>emily.zohar@mail.utoronto.ca</b>.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Consent</b></div>
+        <div class="small">
+          By clicking “I agree,” you confirm that you have read and understood the above information and
+          agree to participate in this study.
+        </div>
+
+        <div class="hr"></div>
+
+        <div><b>Consent to Have Data Uploaded to a Research Database</b></div>
+        <div class="small">
+          By clicking “I agree,” you also agree to have your de-identified data made available in a research
+          database that may be accessed by members of the scientific and psychological academic community.
+          The shared data will not include personally identifiable information.
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btnConsentAgree" class="btn">I agree</button>
+        <button id="btnConsentDisagree" class="btn secondary">I disagree</button>
+      </div>
+    `));
+
+    const agreed = await new Promise(resolve => {
+      $("btnConsentAgree").onclick = () => resolve(true);
+      $("btnConsentDisagree").onclick = () => resolve(false);
+    });
+
+    state.consent = {
+      kind: "consent",
+      participantId: state.participantId,
+      timestampISO: new Date().toISOString(),
+      agreed: agreed ? 1 : 0
+    };
+
+    logEvent("consent_response", { agreed: agreed ? 1 : 0 });
+
+    return agreed;
+  }
+
+  async function endNoConsentScreen() {
+    state.phase = "end_no_consent";
+    setHeader("Finished");
+    setFooter("", "");
+    hideCalculatorPanel();
+
+    render(html(`
+      <div class="notice">
+        <div><b>You did not consent to participate.</b></div>
+        <div class="small">You will now be redirected for course credit.</div>
+      </div>
+    `));
+
+    await wait(800);
+    redirectToCompletionURL();
+  }
+
+  async function welcomeScreen() {
+    state.phase = "welcome";
+    setHeader("Welcome");
+    setFooter("", "");
+    logEvent("welcome_screen");
+
+    render(html(`
+      <div class="notice">
+        <div><b>Welcome.</b></div>
+        <div class="small">
+          In this study, you will review instructions for solving fractions, complete 5 practice problems,
+          and then complete 20 choice trials.
+        </div>
+        <div class="hr"></div>
+        <div class="small">
+          In the main task, each trial will show a hard fraction problem. You will choose whether to
+          <b>complete the hard fraction problem yourself</b> or be <b>given the answer</b> to the hard fraction problem.
+        </div>
+      </div>
+      <div class="row"><button id="btnContinue" class="btn">Continue</button></div>
+    `));
+
+    await new Promise(resolve => { $("btnContinue").onclick = resolve; });
+  }
+
+  async function fractionInstructionsScreen() {
+    state.phase = "fraction_instructions";
+    setHeader("Fraction Instructions");
+    setFooter("", "");
+    logEvent("fraction_instructions_screen");
+
+    render(html(`
+      <div class="notice">
+        <div><b>How to enter answers</b></div>
+        <div class="small">
+          Enter answers as fractions, mixed numbers, or whole numbers. Do not use decimals.
+          <br><br>
+          Examples of valid answers: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.
+        </div>
+      </div>
+
+      <div class="notice">
+        <div><b>Addition and subtraction</b></div>
+        <div class="small">
+          Find a common denominator, convert each fraction, and then add or subtract the numerators.
+          <br>
+          Example: ${fracHTML(frac(3,5))} + ${fracHTML(frac(1,4))} = ${rawFracHTML(12,20)} + ${rawFracHTML(5,20)} = ${rawFracHTML(17,20)}
+        </div>
+        <div class="hr"></div>
+        <div><b>Multiplication</b></div>
+        <div class="small">
+          Multiply the numerators together and multiply the denominators together.
+          <br>
+          Example: ${fracHTML(frac(2,3))} × ${fracHTML(frac(1,2))} = ${rawFracHTML(2,6)} = ${fracHTML(frac(1,3))}
+        </div>
+        <div class="hr"></div>
+        <div><b>Division</b></div>
+        <div class="small">
+          Multiply by the reciprocal: flip the second fraction.
+          <br>
+          Example: ${fracHTML(frac(1,2))} ÷ ${fracHTML(frac(1,4))} = ${fracHTML(frac(1,2))} × ${rawFracHTML(4,1,true)} = ${rawFracHTML(4,2)} = 2
+        </div>
+      </div>
+
+      <div class="row"><button id="btnStartPractice" class="btn">Start practice</button></div>
+    `));
+
+    await new Promise(resolve => { $("btnStartPractice").onclick = resolve; });
+  }
+
+  async function dstInstructionsScreen() {
+    state.phase = "dst_instructions";
+    setHeader("Main Task Instructions");
+    setFooter("", "");
+    logEvent("dst_instructions_screen");
+
+    render(html(`
+      <div class="notice">
+        <div><b>Main task</b></div>
+        <div class="small">
+          You will now complete ${CONFIG.nDSTTrials} choice trials. On each trial, you will see a hard fraction problem.
+        </div>
+         
+        <div class="hr"></div>
+        <div class="small">
+          You will choose between two options:
+          <br><br>
+          <b>Complete hard fraction</b>: You solve the problem yourself and enter your answer.
+          <br>
+          <b>Given answer</b>: You are shown the correct answer and do not solve the problem yourself.
+        </div>
+        <div class="hr"></div>
+        <div class="small">
+          Choose the option you prefer on each trial.
+        </div>
+      </div>
+      <div class="row"><button id="btnStartDST" class="btn">Start main task</button></div>
+    `));
+
+    await new Promise(resolve => { $("btnStartDST").onclick = resolve; });
+  }
+
+  function restrictAnswerBox(answerBox) {
+    answerBox.addEventListener("keydown", e => {
+      if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter", " ", "/", "-"].includes(e.key)) return;
+      if (!/^[0-9]$/.test(e.key)) e.preventDefault();
+    });
+  }
+
+  async function collectFractionAnswer({ problem, phaseLabel, progressLabel }) {
+    setFooter("Fractions, mixed numbers, or whole numbers only", "No decimals");
+
+    render(html(`
+      <div class="row">
+        <div class="pill">${escapeHTML(progressLabel)}</div>
+        <div class="pill">${escapeHTML(problem.difficulty)}</div>
+      </div>
+      <div class="notice">
+        <div class="small muted">Calculate:</div>
+        <div class="math">${problem.expressionHTML}</div>
+      </div>
+      <div class="notice">
+        <div class="small"><b>Your answer</b></div>
+        <input id="answerBox" class="input" autocomplete="off" placeholder="e.g., 3/4 or 2" />
+        <div id="answerErr" class="small bad" style="display:none;margin-top:8px"></div>
+      </div>
+      <div class="row"><button id="btnSubmitAnswer" class="btn">Submit answer</button></div>
+    `));
+
+    showCalculatorPanel();
+
+    const answerBox = $("answerBox");
+    const answerErr = $("answerErr");
+    const t0 = now();
+    answerBox.focus();
+    restrictAnswerBox(answerBox);
+
+    const answerRaw = await new Promise(resolve => {
+      function submit() {
+        const parsed = parseFractionInput(answerBox.value);
+        if (!parsed.ok) {
+          answerErr.style.display = "block";
+          answerErr.textContent = parsed.error;
+          return;
+        }
+        resolve(answerBox.value);
+      }
+      $("btnSubmitAnswer").onclick = submit;
+      answerBox.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+    });
+
+    const rtMs = Math.round(now() - t0);
+    const parsed = parseFractionInput(answerRaw);
+    const correctFrac = frac(problem.correctNumerator, problem.correctDenominator);
+    const correct = sameFrac(parsed.value, correctFrac) ? 1 : 0;
+
+    logEvent(`${phaseLabel}_answer_submitted`, {
+      problemId: problem.id,
+      correct,
+      responseRTms: rtMs
+    });
+
+    return { answerRaw, parsed, correct, rtMs };
+  }
+
+  async function feedbackScreen({ problem, correct, responseText }) {
+    hideCalculatorPanel();
+    setHeader("Feedback");
+    setFooter("", "");
+
+    render(html(`
+      <div class="notice">
+        ${correct ? `<div class="good"><b>Correct</b></div>` : `<div class="bad"><b>Incorrect</b></div>`}
+        <div class="small">
+          Your answer: <b>${escapeHTML(responseText)}</b><br>
+          Correct answer: <b>${escapeHTML(problem.correctText)}</b>
+        </div>
+      </div>
+    `));
+
+    await wait(CONFIG.feedbackMs);
+  }
+
+  async function runPracticeTrial(problem, practiceTrialNumber) {
+    state.phase = "practice";
+    setHeader(`Practice ${practiceTrialNumber} of ${CONFIG.nPracticeTrials}`);
+
+    logEvent("practice_trial_start", {
+      practiceTrialNumber,
+      problemId: problem.id,
+      difficulty: problem.difficulty,
+      steps: problem.steps
+    });
+
+    const result = await collectFractionAnswer({
+      problem,
+      phaseLabel: "practice",
+      progressLabel: `Practice ${practiceTrialNumber} / ${CONFIG.nPracticeTrials}`
+    });
+
+    const row = {
+      kind: "practice_trial",
+      participantId: state.participantId,
+      timestampISO: new Date().toISOString(),
+      practiceTrialNumber,
+      problemId: problem.id,
+      difficulty: problem.difficulty,
+      steps: problem.steps,
+      expressionText: asciiMathText(problem.expressionText),
+      correctTextRaw: problem.correctText,
+      correctTextExcel: excelText(problem.correctText),
+      correctNumerator: problem.correctNumerator,
+      correctDenominator: problem.correctDenominator,
+      responseRaw: String(result.answerRaw || "").trim(),
+      responseRawExcel: excelText(String(result.answerRaw || "").trim()),
+      responseNormalizedRaw: result.parsed.normalized,
+      responseNormalizedExcel: excelText(result.parsed.normalized),
+      responseNumerator: result.parsed.value.n,
+      responseDenominator: result.parsed.value.d,
+      correct: result.correct,
+      responseRTms: result.rtMs
+    };
+
+    state.practiceRows.push(row);
+    await feedbackScreen({ problem, correct: result.correct, responseText: result.parsed.normalized });
+  }
+
+  async function runPracticeBlock() {
+    const practice = generatePracticeBank();
+    checkProblemBank(practice);
+    state.selectedPracticeProblems = practice;
+
+    logEvent("practice_block_start", {
+      nPracticeTrials: practice.length,
+      problemIds: practice.map(p => p.id).join(";")
+    });
+
+    for (let i = 0; i < practice.length; i++) {
+      await runPracticeTrial(practice[i], i + 1);
+    }
+
+    logEvent("practice_block_end", {
+      nPracticeTrials: practice.length,
+      nCorrect: state.practiceRows.reduce((sum, r) => sum + Number(r.correct || 0), 0)
+    });
+  }
+
+  async function runDSTChoiceTrial(problem, dstTrialNumber) {
+    state.phase = "dst_choice";
+    setHeader(`Main task ${dstTrialNumber} of ${CONFIG.nDSTTrials}`);
+    setFooter("Choose one option", "");
+
+    logEvent("dst_trial_start", {
+      dstTrialNumber,
+      problemId: problem.id,
+      difficulty: problem.difficulty,
+      steps: problem.steps
+    });
+
+    render(html(`
+      <div class="row">
+        <div class="pill">Trial ${dstTrialNumber} / ${CONFIG.nDSTTrials}</div>
+      </div>
+      <div class="notice">
+        <div class="small muted">Hard fraction problem:</div>
+        <div class="math">${problem.expressionHTML}</div>
+      </div>
+      <div class="choiceGrid">
+        <div class="choiceCard">
+
+<button id="btnComplete" class="choiceButton completeButton">Complete</button>
+        </div>
+        <div class="choiceCard">
+<button id="btnAnswer" class="choiceButton answerButton">Given answer</button>
+        </div>
+      </div>
+    `));
+
+    const t0 = now();
+    const choice = await new Promise(resolve => {
+      $("btnComplete").onclick = () => resolve("complete_hard_fraction");
+      $("btnAnswer").onclick = () => resolve("given_answer");
+    });
+    const choiceRTms = Math.round(now() - t0);
+
+    const choiceRow = {
+      kind: "dst_choice",
+      participantId: state.participantId,
+      timestampISO: new Date().toISOString(),
+      dstTrialNumber,
+      problemId: problem.id,
+      difficulty: problem.difficulty,
+      steps: problem.steps,
+      expressionText: asciiMathText(problem.expressionText),
+      correctTextRaw: problem.correctText,
+      correctTextExcel: excelText(problem.correctText),
+      correctNumerator: problem.correctNumerator,
+      correctDenominator: problem.correctDenominator,
+      choice,
+      choseComplete: choice === "complete_hard_fraction" ? 1 : 0,
+      choseGivenAnswer: choice === "given_answer" ? 1 : 0,
+      choiceRTms
+    };
+
+    state.dstChoiceRows.push(choiceRow);
+    logEvent("dst_choice_made", { dstTrialNumber, problemId: problem.id, choice, choiceRTms });
+
+    if (choice === "given_answer") {
+      await showGivenAnswerScreen(problem, dstTrialNumber);
+      state.dstPerformanceRows.push({
+        kind: "dst_performance",
+        participantId: state.participantId,
+        timestampISO: new Date().toISOString(),
+        dstTrialNumber,
+        problemId: problem.id,
+        difficulty: problem.difficulty,
+        steps: problem.steps,
+        expressionText: asciiMathText(problem.expressionText),
+        correctTextRaw: problem.correctText,
+        correctTextExcel: excelText(problem.correctText),
+        attempted: 0,
+        choice,
+        responseRaw: "",
+        responseRawExcel: "",
+        responseNormalizedRaw: "",
+        responseNormalizedExcel: "",
+        responseNumerator: "",
+        responseDenominator: "",
+        correct: "",
+        responseRTms: ""
+      });
+      return;
+    }
+
+    state.phase = "dst_performance";
+    setHeader(`Solve trial ${dstTrialNumber} of ${CONFIG.nDSTTrials}`);
+
+    const result = await collectFractionAnswer({
+      problem,
+      phaseLabel: "dst",
+      progressLabel: `Main task ${dstTrialNumber} / ${CONFIG.nDSTTrials}`
+    });
+
+    const performanceRow = {
+      kind: "dst_performance",
+      participantId: state.participantId,
+      timestampISO: new Date().toISOString(),
+      dstTrialNumber,
+      problemId: problem.id,
+      difficulty: problem.difficulty,
+      steps: problem.steps,
+      expressionText: asciiMathText(problem.expressionText),
+      correctTextRaw: problem.correctText,
+      correctTextExcel: excelText(problem.correctText),
+      attempted: 1,
+      choice,
+      correctNumerator: problem.correctNumerator,
+      correctDenominator: problem.correctDenominator,
+      responseRaw: String(result.answerRaw || "").trim(),
+      responseRawExcel: excelText(String(result.answerRaw || "").trim()),
+      responseNormalizedRaw: result.parsed.normalized,
+      responseNormalizedExcel: excelText(result.parsed.normalized),
+      responseNumerator: result.parsed.value.n,
+      responseDenominator: result.parsed.value.d,
+      correct: result.correct,
+      responseRTms: result.rtMs
+    };
+
+    state.dstPerformanceRows.push(performanceRow);
+    await feedbackScreen({ problem, correct: result.correct, responseText: result.parsed.normalized });
+  }
+
+  async function showGivenAnswerScreen(problem, dstTrialNumber) {
+    hideCalculatorPanel();
+    state.phase = "given_answer";
+    setHeader(`Answer shown ${dstTrialNumber} of ${CONFIG.nDSTTrials}`);
+    setFooter("", "");
+
+    render(html(`
+      <div class="notice">
+        <div><b>Correct answer</b></div>
+        <div class="small muted">Problem:</div>
+        <div class="math">${problem.expressionHTML}</div>
+        <div class="hr"></div>
+        <div class="math">${escapeHTML(problem.correctText)}</div>
+      </div>
+    `));
+
+    logEvent("dst_answer_shown", {
+      dstTrialNumber,
+      problemId: problem.id,
+      correctTextRaw: problem.correctText
+    });
+
+    await wait(CONFIG.revealAnswerMs);
+  }
+
+  async function runDSTBlock() {
+    const hardBank = generateDSTHardBank();
+    checkProblemBank(hardBank);
+    state.selectedDSTProblems = shuffledCopy(hardBank).slice(0, CONFIG.nDSTTrials);
+
+    logEvent("dst_block_start", {
+      nDSTTrials: CONFIG.nDSTTrials,
+      bankSize: hardBank.length,
+      problemIds: state.selectedDSTProblems.map(p => p.id).join(";")
+    });
+
+    for (let i = 0; i < state.selectedDSTProblems.length; i++) {
+      await runDSTChoiceTrial(state.selectedDSTProblems[i], i + 1);
+    }
+
+    logEvent("dst_block_end", {
+      nDSTTrials: CONFIG.nDSTTrials,
+      nComplete: state.dstChoiceRows.reduce((sum, r) => sum + Number(r.choseComplete || 0), 0),
+      nGivenAnswer: state.dstChoiceRows.reduce((sum, r) => sum + Number(r.choseGivenAnswer || 0), 0),
+      nCorrectAmongAttempted: state.dstPerformanceRows.reduce((sum, r) => sum + Number(r.correct || 0), 0)
+    });
+  }
+
+  // ============================================================
+  // CSV + DATAPIPE
+  // ============================================================
+  function flattenForCSV() {
+    const rows = [];
+
+    rows.push({
+      kind: "meta",
+      participantId: state.participantId,
+      startedAtISO: state.startedAtISO,
+      exportedAtISO: new Date().toISOString(),
+      nPracticeTrials: CONFIG.nPracticeTrials,
+      nDSTTrials: CONFIG.nDSTTrials,
+      practiceProblemIds: state.selectedPracticeProblems.map(p => p.id).join(";"),
+      dstProblemIds: state.selectedDSTProblems.map(p => p.id).join(";")
+    });
+
+    if (state.consent) rows.push(state.consent);
+
+    for (const e of state.events) rows.push(e);
+    for (const p of state.practiceRows) rows.push(p);
+    for (const c of state.dstChoiceRows) rows.push(c);
+    for (const d of state.dstPerformanceRows) rows.push(d);
+
+    return rows;
+  }
+
+  function toCSV(rows) {
+    if (!rows || rows.length === 0) return "";
+
+    const headerSet = new Set();
+    rows.forEach(r => Object.keys(r).forEach(k => headerSet.add(k)));
+
+    const preferred = [
+      "kind",
+      "participantId",
+      "timestampISO",
+      "agreed",
+      "startedAtISO",
+      "exportedAtISO",
+      "eventIndex",
+      "type",
+      "nPracticeTrials",
+      "nDSTTrials",
+      "practiceProblemIds",
+      "dstProblemIds",
+      "practiceTrialNumber",
+      "dstTrialNumber",
+      "problemId",
+      "difficulty",
+      "steps",
+      "expressionText",
+      "choice",
+      "choseComplete",
+      "choseGivenAnswer",
+      "choiceRTms",
+      "attempted",
+      "correctTextRaw",
+      "correctTextExcel",
+      "correctNumerator",
+      "correctDenominator",
+      "responseRaw",
+      "responseRawExcel",
+      "responseNormalizedRaw",
+      "responseNormalizedExcel",
+      "responseNumerator",
+      "responseDenominator",
+      "correct",
+      "responseRTms"
+    ];
+
+    const headers = [
+      ...preferred.filter(h => headerSet.has(h)),
+      ...Array.from(headerSet).filter(h => !preferred.includes(h))
+    ];
+
+    const esc = (v) => {
+      const s = String(v ?? "");
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    return "\uFEFF" + [
+      headers.join(","),
+      ...rows.map(r => headers.map(h => esc(r[h])).join(","))
+    ].join("\n");
+  }
+
+  async function saveCSVToPipe({ experimentID, filename, csvString }) {
+    const res = await fetch("https://pipe.jspsych.org/api/data/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experimentID, filename, data: csvString })
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Pipe save failed: ${res.status} ${res.statusText} ${txt}`);
+    }
+
+    return res.json().catch(() => ({}));
+  }
+
+  function downloadText(filename, text, mime = "text/csv") {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function buildRedirectURL() {
+    if (!CONFIG.completionRedirectURL) return "";
+    return CONFIG.completionRedirectURL.replaceAll("{participantId}", encodeURIComponent(state.participantId));
+  }
+
+  function redirectToCompletionURL() {
+    const url = buildRedirectURL();
+    if (!url) return;
+    window.location.href = url;
+  }
+
+  async function endScreen() {
+    hideCalculatorPanel();
+    state.phase = "end";
+    setHeader("Finished");
+    setFooter("", "");
+
+    const filename = `fraction-dst-sub-${state.participantId}-${Date.now()}.csv`;
+    const csvString = toCSV(flattenForCSV());
+
+    render(html(`
+      <div class="notice">
+        <div><b>Saving your data…</b></div>
+        <div class="small">Please do not close this window.</div>
+      </div>
+    `));
+
+    try {
+      await saveCSVToPipe({
+        experimentID: CONFIG.experimentID,
+        filename,
+        csvString
+      });
+
+      logEvent("datapipe_save_success", { filename });
+
+      render(html(`
+        <div class="notice">
+          <div class="good"><b>Saved.</b></div>
+          <div class="small muted">${escapeHTML(filename)}</div>
+          <div class="small">You will now be redirected.</div>
+        </div>
+      `));
+
+      await wait(700);
+      redirectToCompletionURL();
+    } catch (e) {
+      console.error(e);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logEvent("datapipe_save_failure", { filename, errorMessage });
+
+      const rows = flattenForCSV();
+      rows.push({
+        kind: "save_error",
+        participantId: state.participantId,
+        timestampISO: new Date().toISOString(),
+        errorMessage
+      });
+      const csvWithError = toCSV(rows);
+
+      render(html(`
+        <div class="notice">
+          <div class="bad"><b>Upload failed.</b></div>
+          <div class="small">The study is complete, but the data upload did not work.</div>
+          <div class="hr"></div>
+          <div class="small"><b>Error:</b> ${escapeHTML(errorMessage)}</div>
+          <div class="hr"></div>
+          <div class="small">Download the CSV and send it to the researcher.</div>
+        </div>
+        <div class="row">
+          <button id="btnCsv" class="btn">Download CSV</button>
+          <button id="btnRedirect" class="btn secondary">Redirect anyway</button>
+        </div>
+      `));
+
+      $("btnCsv").onclick = () => downloadText(filename, csvWithError, "text/csv");
+      $("btnRedirect").onclick = redirectToCompletionURL;
+    }
+  }
+
+  // ============================================================
+  // BOOT
+  // ============================================================
+  async function boot() {
+    initStudy();
+
+    const agreed = await consentScreen();
+    if (!agreed) {
+      await endNoConsentScreen();
+      return;
+    }
+
+    await welcomeScreen();
+    await fractionInstructionsScreen();
+    await runPracticeBlock();
+    await dstInstructionsScreen();
+    await runDSTBlock();
+    await endScreen();
+  }
+
+  boot().catch(e => {
+    console.error(e);
+    hideCalculatorPanel();
+    render(html(`
+      <div class="notice">
+        <div class="bad"><b>Unexpected error</b></div>
+        <div class="small">${escapeHTML(e instanceof Error ? e.message : String(e))}</div>
+      </div>
+    `));
+  });
+})();
+</script>
+</body>
+</html>
