@@ -909,7 +909,7 @@ function generateDSTHardBank() {
 
     panel.innerHTML = `
       <div><b>Notepad</b></div>
-      <div class="small muted">Use this space for rough work. It remains available across problems.</div>
+      <div class="small muted">Use this space for rough work.</div>
       <textarea id="roughNotepad" class="notepad" placeholder="Write rough work here..."></textarea>
       <div class="hr"></div>
       <div><b>Calculator</b></div>
@@ -938,7 +938,8 @@ function generateDSTHardBank() {
     `;
 
     const note = $("roughNotepad");
-    note.value = state.notepadText;
+    state.notepadText = "";
+    note.value = "";
     note.addEventListener("input", () => { state.notepadText = note.value; });
     attachCalculatorHandlers();
   }
@@ -1166,7 +1167,6 @@ function generateDSTHardBank() {
     render(html(`
       <div class="row">
         <div class="pill">${escapeHTML(progressLabel)}</div>
-        <div class="pill">${escapeHTML(problem.difficulty)}</div>
       </div>
       <div class="notice">
         <div class="small muted">Calculate:</div>
@@ -1252,7 +1252,7 @@ function generateDSTHardBank() {
   async function runAnswerExposureTrial(problem, practiceTrialNumber) {
     state.phase = "answer_exposure";
     setHeader(`Learning problem ${practiceTrialNumber}`);
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Review the worked answer");
+    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please wait while the answer is calculated");
     const t0 = now();
     logEvent("answer_exposure_trial_start", { practiceTrialNumber, problemId: problem.id });
 
@@ -1262,46 +1262,116 @@ function generateDSTHardBank() {
         <div class="small muted">Problem</div>
         <div class="math">${problem.expressionHTML}</div>
         <div class="hr"></div>
-        <div class="small muted">Correct answer</div>
-        <div class="math">${escapeHTML(problem.correctText)}</div>
+        <div id="exposureStatus" class="notice" style="margin-top:16px">
+          <div><b>Calculating the answer…</b></div>
+          <div class="small muted">Please wait.</div>
+        </div>
+        <div id="exposureAnswer" style="display:none">
+          <div class="small muted">Calculated answer</div>
+          <div class="math">${escapeHTML(problem.correctText)}</div>
+          <div class="notice">
+            <div><b>Copy the calculated answer below.</b></div>
+            <div class="small muted">Then use the remaining time to think about how the answer follows from the problem.</div>
+            <input id="exposureCopyBox" class="input" autocomplete="off" placeholder="Type the answer exactly as shown" style="margin-top:12px" />
+            <div id="exposureCopyMessage" class="small muted" style="margin-top:8px">You must copy the answer correctly before continuing.</div>
+          </div>
+          <div id="reflectionStatus" class="small muted">Please reflect on the answer.</div>
+        </div>
       </div>
-      <div class="row"><button id="btnNextExposure" class="btn">Next problem</button></div>
+      <div class="row"><button id="btnNextExposure" class="btn" disabled>Next problem</button></div>
     `));
     showCalculatorPanel();
 
     const action = await new Promise(resolve => {
       let done = false;
-      const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
-      $("btnNextExposure").onclick = () => finish("continued");
-      const checker = setInterval(() => { if (!practiceTimeRemaining() || !studyTimeRemaining()) finish("timeout"); }, 200);
+      let answerShown = false;
+      let copiedCorrectly = false;
+      let copiedAnswerRaw = "";
+      const answerDelayMs = 10000;
+      const reflectionDelayMs = 15000;
+      const answerAt = t0 + answerDelayMs;
+      const nextAt = answerAt + reflectionDelayMs;
+
+      const finish = value => {
+        if (done) return;
+        done = true;
+        window.clearInterval(checker);
+        resolve(value);
+      };
+
+      $("btnNextExposure").onclick = () => {
+        if (!$("btnNextExposure").disabled) finish({ action: "continued", copiedAnswerRaw });
+      };
+
+      const checker = window.setInterval(() => {
+        if (!practiceTimeRemaining() || !studyTimeRemaining()) {
+          finish({ action: "timeout", copiedAnswerRaw });
+          return;
+        }
+
+        const current = now();
+        if (!answerShown) {
+          if (current >= answerAt) {
+            answerShown = true;
+            $("exposureStatus").style.display = "none";
+            $("exposureAnswer").style.display = "block";
+            const copyBox = $("exposureCopyBox");
+            const copyMessage = $("exposureCopyMessage");
+            restrictAnswerBox(copyBox);
+            copyBox.focus();
+            const evaluateCopy = () => {
+              copiedAnswerRaw = copyBox.value;
+              const parsed = parseFractionInput(copiedAnswerRaw);
+              const correctFrac = frac(problem.correctNumerator, problem.correctDenominator);
+              copiedCorrectly = Boolean(parsed.ok && sameFrac(parsed.value, correctFrac));
+              copyMessage.textContent = copiedCorrectly
+                ? "Answer copied correctly. Please reflect on the answer."
+                : "Copy the calculated answer correctly before continuing.";
+              copyMessage.className = copiedCorrectly ? "small good" : "small muted";
+            };
+            copyBox.addEventListener("input", evaluateCopy);
+            setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Copy the answer and reflect on it");
+            logEvent("answer_exposure_answer_shown", {
+              practiceTrialNumber,
+              problemId: problem.id,
+              answerRevealDelayMs: Math.round(current - t0)
+            });
+          }
+          return;
+        }
+
+        if (current < nextAt) {
+          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please reflect on the answer");
+        } else if (!copiedCorrectly) {
+          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Copy the answer correctly to continue");
+        } else {
+          $("btnNextExposure").disabled = false;
+          $("reflectionStatus").innerHTML = '<span class="good"><b>Reflection period complete.</b></span>';
+          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "You may continue");
+        }
+      }, 100);
     });
+
     const rtMs = Math.round(now() - t0);
+    const actionName = typeof action === "string" ? action : action.action;
+    const copiedAnswerRaw = typeof action === "object" ? (action.copiedAnswerRaw || "") : "";
+    const copiedParsed = parseFractionInput(copiedAnswerRaw);
+    const copiedCorrect = copiedParsed.ok && sameFrac(copiedParsed.value, frac(problem.correctNumerator, problem.correctDenominator)) ? 1 : 0;
     state.practiceRows.push({
       kind: "practice_trial", participantId: state.participantId, timestampISO: new Date().toISOString(),
       practiceCondition: state.practiceCondition, practiceTrialNumber, problemId: problem.id, difficulty: problem.difficulty, steps: problem.steps,
       expressionText: asciiMathText(problem.expressionText), correctTextRaw: problem.correctText, correctTextExcel: excelText(problem.correctText),
-      action, attempted: 0, pressedRevealAnswer: 0, answerCorrect: "", correct: "", questionTimeMs: rtMs,
-      questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
+      action: actionName, attempted: 0, pressedRevealAnswer: 0, revealedAnswer: 1,
+      copiedAnswerRaw, copiedAnswerRawExcel: excelText(copiedAnswerRaw), copiedAnswerCorrect: copiedCorrect,
+      answerCorrect: copiedCorrect, correct: copiedCorrect,
+      answerRevealDelayMs: 10000, requiredReflectionMs: 10000,
+      questionTimeMs: rtMs, questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
     });
-    return action !== "timeout";
-  }
-
-  function guidedStepSequence(problem) {
-    const labels = [];
-    for (const op of (problem.operationSequence || [])) {
-      if (op === "+") {
-        labels.push("Find common denominator", "Add numerators");
-      } else if (op === "-") {
-        labels.push("Find common denominator", "Subtract numerators");
-      } else if (op === "*") {
-        labels.push("Multiply numerators", "Multiply denominators");
-      } else if (op === "/") {
-        labels.push("Flip the second fraction", "Multiply numerators", "Multiply denominators");
-      }
-      labels.push("Simplify the result");
-    }
-    labels.push("Final answer");
-    return labels;
+    logEvent("answer_exposure_trial_end", {
+      practiceTrialNumber, problemId: problem.id, action: actionName,
+      copiedAnswerRaw, copiedAnswerCorrect: copiedCorrect, responseRTms: rtMs
+    });
+    return actionName !== "timeout";
   }
 
   function makeStepCard(label, index) {
