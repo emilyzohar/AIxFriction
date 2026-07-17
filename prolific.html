@@ -315,6 +315,29 @@
       outline-offset: 1px;
     }
 
+    .likert-scale {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(42px, 1fr));
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .likert-option {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .likert-option input { width: 20px; height: 20px; }
+    .likert-option span { font-weight: 650; }
+    .likert-anchors {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     @media (max-width: 760px) {
       .calculator-panel-fixed {
         position: static;
@@ -371,6 +394,7 @@
     selectedPracticeProblems: [],
     selectedDSTProblems: [],
     consent: null,
+    practiceRatings: null,
     taskStartedAtMs: null,
     taskDeadlineMs: null,
     practiceDeadlineMs: null,
@@ -1483,6 +1507,91 @@ function generateDSTHardBank() {
     logEvent("practice_block_end", { nPracticeTrials: state.practiceRows.length, elapsedStudyMs: elapsedStudyMs() });
   }
 
+
+  async function practiceRatingsScreen() {
+    if (!studyTimeRemaining()) return false;
+
+    state.phase = "practice_ratings";
+    hideCalculatorPanel();
+    setHeader("Your Experience");
+    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please answer both questions");
+    logEvent("practice_ratings_screen");
+
+    const scaleHTML = (name) => `
+      <div class="likert-scale" role="radiogroup" aria-label="Response scale from 1 to 7">
+        ${[1,2,3,4,5,6,7].map(value => `
+          <label class="likert-option">
+            <input type="radio" name="${name}" value="${value}">
+            <span>${value}</span>
+          </label>
+        `).join("")}
+      </div>
+      <div class="likert-anchors"><span>Not at all</span><span>Extremely</span></div>
+    `;
+
+    render(html(`
+      <div class="notice">
+        <div><b>How difficult did you find it was to answer the fraction problems?</b></div>
+        ${scaleHTML("practiceDifficulty")}
+      </div>
+      <div class="notice">
+        <div><b>Did you feel you were able to be successful in answering the fraction problems?</b></div>
+        ${scaleHTML("practiceSuccess")}
+      </div>
+      <div id="ratingsErr" class="small bad" style="display:none;margin-top:8px">Please answer both questions.</div>
+      <div class="row"><button id="btnSubmitRatings" class="btn">Continue</button></div>
+    `));
+
+    const t0 = now();
+    const result = await new Promise(resolve => {
+      let finished = false;
+      const finish = value => {
+        if (finished) return;
+        finished = true;
+        clearInterval(checker);
+        resolve(value);
+      };
+
+      $("btnSubmitRatings").onclick = () => {
+        const difficulty = document.querySelector('input[name="practiceDifficulty"]:checked')?.value;
+        const success = document.querySelector('input[name="practiceSuccess"]:checked')?.value;
+        if (!difficulty || !success) {
+          $("ratingsErr").style.display = "block";
+          return;
+        }
+        finish({ action: "submitted", difficulty: Number(difficulty), success: Number(success) });
+      };
+
+      const checker = setInterval(() => {
+        if (!studyTimeRemaining()) finish({ action: "timeout" });
+      }, 200);
+    });
+
+    const rtMs = Math.round(now() - t0);
+    state.practiceRatings = {
+      kind: "practice_ratings",
+      participantId: state.participantId,
+      timestampISO: new Date().toISOString(),
+      practiceConditionNumber: state.practiceConditionNumber,
+      practiceCondition: state.practiceCondition,
+      action: result.action,
+      practiceDifficulty: result.action === "submitted" ? result.difficulty : "",
+      practiceSuccess: result.action === "submitted" ? result.success : "",
+      ratingsRTms: rtMs,
+      ratingsTimeSeconds: Number((rtMs / 1000).toFixed(3)),
+      elapsedStudyMs: elapsedStudyMs()
+    };
+
+    logEvent("practice_ratings_response", {
+      action: result.action,
+      practiceDifficulty: state.practiceRatings.practiceDifficulty,
+      practiceSuccess: state.practiceRatings.practiceSuccess,
+      ratingsRTms: rtMs
+    });
+
+    return result.action === "submitted";
+  }
+
   async function runMainTrial(problem, trialNumber) {
     state.phase = "main_task";
     setHeader(`Main task problem ${trialNumber}`);
@@ -1589,6 +1698,7 @@ function generateDSTHardBank() {
     });
 
     if (state.consent) rows.push(state.consent);
+    if (state.practiceRatings) rows.push(state.practiceRatings);
 
     for (const e of state.events) rows.push(e);
     for (const p of state.practiceRows) rows.push(p);
@@ -1621,6 +1731,10 @@ function generateDSTHardBank() {
       "practiceCondition",
       "practiceConditionSource",
       "practiceConditionError",
+      "practiceDifficulty",
+      "practiceSuccess",
+      "ratingsRTms",
+      "ratingsTimeSeconds",
       "nPracticeTrials",
       "nDSTTrials",
       "practiceProblemIds",
@@ -1808,6 +1922,8 @@ function generateDSTHardBank() {
     if (!studyTimeRemaining()) return;
     await runPracticeBlock();
     if (!studyTimeRemaining()) return;
+    const ratingsCompleted = await practiceRatingsScreen();
+    if (!ratingsCompleted || !studyTimeRemaining()) return;
     await dstInstructionsScreen();
     if (!studyTimeRemaining()) return;
     await runDSTBlock();
