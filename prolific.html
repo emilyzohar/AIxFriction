@@ -260,6 +260,61 @@
       margin-top: 4px;
     }
 
+    .scaffold-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .scaffold-table th, .scaffold-table td {
+      border: 1px solid var(--border);
+      padding: 8px;
+      vertical-align: top;
+    }
+    .scaffold-table th {
+      text-align: left;
+      background: #f3f4f6;
+    }
+    .scaffold-input {
+      width: calc(100% - 18px);
+      min-height: 34px;
+      padding: 7px 8px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font: inherit;
+    }
+
+    .step-bank {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 48px;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      background: #f9fafb;
+      margin-top: 10px;
+    }
+    .step-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      cursor: grab;
+      user-select: none;
+    }
+    .step-card:active { cursor: grabbing; }
+    .step-slot {
+      min-height: 42px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 5px;
+      background: #fff;
+    }
+    .step-slot.drag-over, .step-bank.drag-over {
+      outline: 2px solid #6b7280;
+      outline-offset: 1px;
+    }
+
     @media (max-width: 760px) {
       .calculator-panel-fixed {
         position: static;
@@ -291,11 +346,11 @@
   // CONFIG: EDIT THESE BEFORE LAUNCHING
   // ============================================================
   const CONFIG = {
-    experimentID: "QgzXmzXwxYHB", // DataPipe experiment ID
+    experimentID: "10wm0RGeMQyL", // DataPipe experiment ID
     // Replace with the completion URL supplied by Prolific (normally ends in ?cc=XXXXXXX).
-    completionRedirectURL: "https://app.prolific.com/submissions/complete?cc=C14L7H99",
-    totalStudyMs: 7 * 60 * 1000,
-    practicePhaseMs: 3 * 60 * 1000,
+    completionRedirectURL: "https://app.prolific.com/submissions/complete?cc=REPLACE_WITH_PROLIFIC_COMPLETION_CODE",
+    totalStudyMs: 15 * 60 * 1000,
+    practicePhaseMs: 10 * 60 * 1000,
     feedbackMs: 700,
     revealAnswerMs: 1200,
     allowMixedNumbers: true,
@@ -323,6 +378,10 @@
     ended: false,
     saving: false,
     notepadText: "",
+    practiceCondition: null,
+    practiceConditionNumber: null,
+    practiceConditionSource: null,
+    practiceConditionError: null,
     _eventIndex: 0
   };
 
@@ -345,6 +404,88 @@
     state.sessionId = sessionId;
     state.startedAtISO = new Date().toISOString();
     logEvent("study_page_loaded", { participantId, studyId, sessionId });
+  }
+
+  function hashStringToUint32(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  const PRACTICE_CONDITIONS = [
+    "solve_practice",
+    "answer_exposure",
+    "guided_table"
+  ];
+
+  async function requestDataPipeCondition() {
+    const response = await fetch("https://pipe.jspsych.org/api/condition/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experimentID: CONFIG.experimentID })
+    });
+
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (_) {
+      // The status check below will provide a useful error.
+    }
+
+    if (!response.ok) {
+      const detail = result.message || result.error || `${response.status} ${response.statusText}`;
+      throw new Error(`DataPipe condition request failed: ${detail}`);
+    }
+
+    const conditionNumber = Number(result.condition);
+    if (!Number.isInteger(conditionNumber) || conditionNumber < 0 || conditionNumber >= PRACTICE_CONDITIONS.length) {
+      throw new Error(`DataPipe returned invalid condition: ${String(result.condition)}`);
+    }
+
+    return conditionNumber;
+  }
+
+  async function assignPracticeCondition() {
+    const sp = new URLSearchParams(window.location.search);
+    const override = (sp.get("condition") || "").toLowerCase();
+
+    // Keep this URL override for testing only. Do not include it in the Prolific launch URL.
+    if (PRACTICE_CONDITIONS.includes(override)) {
+      state.practiceConditionNumber = PRACTICE_CONDITIONS.indexOf(override);
+      state.practiceCondition = override;
+      state.practiceConditionSource = "url_override";
+    } else {
+      try {
+        const conditionNumber = await requestDataPipeCondition();
+        state.practiceConditionNumber = conditionNumber;
+        state.practiceCondition = PRACTICE_CONDITIONS[conditionNumber];
+        state.practiceConditionSource = "datapipe_balanced_assignment";
+      } catch (error) {
+        // Fail-safe: preserve participation if DataPipe assignment is temporarily unavailable.
+        // The fallback remains stable across refreshes for the same Prolific participant.
+        const key = `${state.participantId}|${state.studyId || "study"}`;
+        const fallbackNumber = hashStringToUint32(key) % PRACTICE_CONDITIONS.length;
+        state.practiceConditionNumber = fallbackNumber;
+        state.practiceCondition = PRACTICE_CONDITIONS[fallbackNumber];
+        state.practiceConditionSource = "prolific_id_hash_fallback";
+        state.practiceConditionError = error instanceof Error ? error.message : String(error);
+        logEvent("practice_condition_assignment_error", {
+          errorMessage: state.practiceConditionError,
+          fallbackConditionNumber: fallbackNumber,
+          fallbackCondition: state.practiceCondition
+        });
+      }
+    }
+
+    logEvent("practice_condition_assigned", {
+      practiceConditionNumber: state.practiceConditionNumber,
+      practiceCondition: state.practiceCondition,
+      practiceConditionSource: state.practiceConditionSource,
+      practiceConditionError: state.practiceConditionError || ""
+    });
   }
 
   function startTimedStudy() {
@@ -561,6 +702,7 @@
       id,
       difficulty,
       steps: 1,
+      operationSequence: [op],
       expressionText: `${a.text} ${op} ${b.text}`,
       expressionHTML: `${a.html} ${opHTML(op)} ${b.html}`,
       correctNumerator: answer.n,
@@ -579,6 +721,7 @@
       id,
       difficulty,
       steps: 2,
+      operationSequence: [op1, op2],
       expressionText: `(${a.text} ${op1} ${b.text}) ${op2} ${c.text}`,
       expressionHTML: `(${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}`,
       correctNumerator: answer.n,
@@ -599,6 +742,7 @@
       id,
       difficulty,
       steps: 3,
+      operationSequence: [op1, op2, op3],
       expressionText: `((${a.text} ${op1} ${b.text}) ${op2} ${c.text}) ${op3} ${d.text}`,
       expressionHTML: `((${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}) ${opHTML(op3)} ${d.html}`,
       correctNumerator: answer.n,
@@ -826,9 +970,9 @@ function generateDSTHardBank() {
         <div class="hr"></div>
         <div><b>Information and procedures</b></div>
         <div class="small">
-          You are invited to participate in a 10-minute online research study about fraction problem solving. After consenting, you will review fraction instructions. During the first three minutes, you will practise solving fraction problems. During the final seven minutes, you will continue solving fraction problems. During this final stage only, you may submit an answer or select <b>Reveal answer</b> to stop working on that problem and move on.
+          You are invited to participate in a 15-minute online research study about fraction problem solving. After consenting, you will review fraction instructions. During the first five minutes, you will be assigned to one of three fraction-learning activities. During the final ten minutes, everyone will continue solving fraction problems. During this final stage only, you may submit an answer or select <b>Reveal answer and continue</b> to stop working on that problem and move on.
           <br><br>
-          The study is strictly timed. When 10 minutes have elapsed after you consent, the task will end automatically, your responses will be saved, and you will be redirected to Prolific.
+          The study is strictly timed. When 15 minutes have elapsed after you consent, the task will end automatically, your responses will be saved, and you will be redirected to Prolific.
         </div>
         <div class="hr"></div>
         <div><b>Risks and benefits</b></div>
@@ -896,30 +1040,32 @@ function generateDSTHardBank() {
   async function fractionInstructionsScreen() {
     state.phase = "fraction_instructions";
     setHeader("Fraction Instructions");
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "First 3 minutes: practice");
-    logEvent("fraction_instructions_screen");
+    setFooter("", "");
+    logEvent("fraction_instructions_screen", { practiceCondition: state.practiceCondition });
+
+    const conditionText = {
+      solve_practice: `<b>Solve-practice activity:</b> For the first five minutes, solve each fraction problem and submit your answer.`,
+      answer_exposure: `<b>Answer-exposure activity:</b> For the first five minutes, each problem and its correct answer will be shown. Review each one, then continue.`,
+      guided_table: `<b>Guided-table activity:</b> For the first five minutes, use a six-step table to work through each problem. On the first three problems, the step labels will already be filled in. After that, you will enter the step labels yourself; a hint button can reveal the next label.`
+    }[state.practiceCondition];
 
     render(html(`
       <div class="notice">
-        <div><b>Study structure</b></div>
+        <div><b>How to enter answers</b></div>
         <div class="small">
-          The 10-minute timer has started. Until the three-minute mark, you will practise fractions and must submit an answer for each problem. For the remaining seven minutes, continue working through fraction problems. During that final stage, you may either submit an answer or press <b>Reveal answer</b> to give up on a problem and move to the next one.
+          Enter answers as fractions, mixed numbers, or whole numbers. Do not use decimals.
+          <br><br>Examples: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.
         </div>
       </div>
       <div class="notice">
-        <div><b>How to enter answers</b></div>
-        <div class="small">Enter a fraction, mixed number, or whole number. Do not use decimals. Examples: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.</div>
-        <div class="hr"></div>
-        <div><b>Addition and subtraction</b></div>
-        <div class="small">Find a common denominator, then add or subtract the numerators.<br>Example: ${fracHTML(frac(3,5))} + ${fracHTML(frac(1,4))} = ${rawFracHTML(12,20)} + ${rawFracHTML(5,20)} = ${rawFracHTML(17,20)}</div>
-        <div class="hr"></div>
-        <div><b>Multiplication</b></div>
-        <div class="small">Multiply the numerators and denominators.<br>Example: ${fracHTML(frac(2,3))} × ${fracHTML(frac(1,2))} = ${rawFracHTML(2,6)} = ${fracHTML(frac(1,3))}</div>
-        <div class="hr"></div>
-        <div><b>Division</b></div>
-        <div class="small">Multiply by the reciprocal of the second fraction.<br>Example: ${fracHTML(frac(1,2))} ÷ ${fracHTML(frac(1,4))} = ${fracHTML(frac(1,2))} × ${rawFracHTML(4,1,true)} = 2</div>
+        <div><b>Fraction rules</b></div>
+        <div class="small">
+          For addition and subtraction, use a common denominator. Follow the order of operations.
+          For division, flip the second fraction and multiply. Multiply numerators together and denominators together, then simplify the final answer.
+        </div>
       </div>
-      <div class="row"><button id="btnStartPractice" class="btn">Begin fraction problems</button></div>
+      <div class="notice"><div class="small">${conditionText}</div></div>
+      <div class="row"><button id="btnStartPractice" class="btn">Begin first activity</button></div>
     `));
 
     await new Promise(resolve => { $("btnStartPractice").onclick = resolve; });
@@ -933,7 +1079,7 @@ function generateDSTHardBank() {
     render(html(`
       <div class="notice">
         <div><b>The practice period is complete.</b></div>
-        <div class="small">Continue working through fraction problems until the 10-minute study ends. Try to solve each problem, but you are free to give up at any time by pressing <b>Reveal answer</b>.</div>
+        <div class="small">Continue working through fraction problems until the 15-minute study ends. Try to solve each problem, but you are free to give up at any time by pressing <b>Reveal answer and continue</b>.</div>
       </div>
       <div class="row"><button id="btnStartDST" class="btn">Continue</button></div>
     `));
@@ -967,7 +1113,7 @@ function generateDSTHardBank() {
       </div>
       <div class="row">
         <button id="btnSubmitAnswer" class="btn">Submit answer</button>
-        ${allowReveal ? '<button id="btnRevealAnswer" class="btn secondary">Reveal answer</button>' : ''}
+        ${allowReveal ? '<button id="btnRevealAnswer" class="btn secondary">Reveal answer and continue</button>' : ''}
       </div>
     `));
 
@@ -1037,6 +1183,195 @@ function generateDSTHardBank() {
     await wait(CONFIG.feedbackMs);
   }
 
+  async function runAnswerExposureTrial(problem, practiceTrialNumber) {
+    state.phase = "answer_exposure";
+    setHeader(`Learning problem ${practiceTrialNumber}`);
+    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Review the worked answer");
+    const t0 = now();
+    logEvent("answer_exposure_trial_start", { practiceTrialNumber, problemId: problem.id });
+
+    render(html(`
+      <div class="row"><div class="pill">Learning problem ${practiceTrialNumber}</div></div>
+      <div class="notice">
+        <div class="small muted">Problem</div>
+        <div class="math">${problem.expressionHTML}</div>
+        <div class="hr"></div>
+        <div class="small muted">Correct answer</div>
+        <div class="math">${escapeHTML(problem.correctText)}</div>
+      </div>
+      <div class="row"><button id="btnNextExposure" class="btn">Next problem</button></div>
+    `));
+    showCalculatorPanel();
+
+    const action = await new Promise(resolve => {
+      let done = false;
+      const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
+      $("btnNextExposure").onclick = () => finish("continued");
+      const checker = setInterval(() => { if (!practiceTimeRemaining() || !studyTimeRemaining()) finish("timeout"); }, 200);
+    });
+    const rtMs = Math.round(now() - t0);
+    state.practiceRows.push({
+      kind: "practice_trial", participantId: state.participantId, timestampISO: new Date().toISOString(),
+      practiceCondition: state.practiceCondition, practiceTrialNumber, problemId: problem.id, difficulty: problem.difficulty, steps: problem.steps,
+      expressionText: asciiMathText(problem.expressionText), correctTextRaw: problem.correctText, correctTextExcel: excelText(problem.correctText),
+      action, attempted: 0, pressedRevealAnswer: 0, answerCorrect: "", correct: "", questionTimeMs: rtMs,
+      questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
+    });
+    return action !== "timeout";
+  }
+
+  function guidedStepSequence(problem) {
+    const labels = [];
+    for (const op of (problem.operationSequence || [])) {
+      if (op === "+") {
+        labels.push("Find common denominator", "Add numerators");
+      } else if (op === "-") {
+        labels.push("Find common denominator", "Subtract numerators");
+      } else if (op === "*") {
+        labels.push("Multiply numerators", "Multiply denominators");
+      } else if (op === "/") {
+        labels.push("Flip the second fraction", "Multiply numerators", "Multiply denominators");
+      }
+      labels.push("Simplify the result");
+    }
+    labels.push("Final answer");
+    return labels;
+  }
+
+  function makeStepCard(label, index) {
+    return `<div class="step-card" draggable="true" data-step-id="step-${index}" data-label="${escapeHTML(label)}">${escapeHTML(label)}</div>`;
+  }
+
+  function attachStepDragHandlers() {
+    let dragged = null;
+    document.querySelectorAll(".step-card").forEach(card => {
+      card.addEventListener("dragstart", e => {
+        dragged = card;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", card.dataset.stepId || "");
+      });
+      card.addEventListener("click", () => {
+        const empty = Array.from(document.querySelectorAll(".step-slot")).find(slot => !slot.querySelector(".step-card"));
+        if (empty && card.parentElement?.id === "stepBank") empty.appendChild(card);
+      });
+    });
+
+    document.querySelectorAll(".step-slot, .step-bank").forEach(target => {
+      target.addEventListener("dragover", e => { e.preventDefault(); target.classList.add("drag-over"); });
+      target.addEventListener("dragleave", () => target.classList.remove("drag-over"));
+      target.addEventListener("drop", e => {
+        e.preventDefault();
+        target.classList.remove("drag-over");
+        if (!dragged) return;
+        if (target.classList.contains("step-slot")) {
+          const existing = target.querySelector(".step-card");
+          if (existing && existing !== dragged) {
+            const origin = dragged.parentElement;
+            origin.appendChild(existing);
+          }
+          target.appendChild(dragged);
+        } else {
+          target.appendChild(dragged);
+        }
+      });
+    });
+  }
+
+  async function runGuidedTableTrial(problem, practiceTrialNumber) {
+    state.phase = "guided_table";
+    const labelsPrefilled = practiceTrialNumber <= 3;
+    const correctSequence = guidedStepSequence(problem);
+    setHeader(`Guided problem ${practiceTrialNumber}`);
+    setFooter("Time remaining: " + formatClock(remainingStudyMs()), labelsPrefilled ? "Steps shown in a suggested order" : "Drag the steps into the order you would use");
+    logEvent("guided_table_trial_start", { practiceTrialNumber, problemId: problem.id, labelsPrefilled, correctSequenceJSON: JSON.stringify(correctSequence) });
+
+    const rows = correctSequence.map((_, i) => `
+      <tr>
+        <td><div id="stepSlot${i}" class="step-slot">${labelsPrefilled ? makeStepCard(correctSequence[i], i) : ""}</div></td>
+        <td><input id="stepWork${i}" class="scaffold-input" autocomplete="off" placeholder="Write your intermediate answer" /></td>
+      </tr>`).join("");
+
+    const shuffledCards = shuffledCopy(correctSequence.map((label, i) => ({ label, i })))
+      .map(x => makeStepCard(x.label, x.i)).join("");
+
+    render(html(`
+      <div class="row"><div class="pill">Guided problem ${practiceTrialNumber}</div></div>
+      <div class="notice"><div class="small muted">Calculate:</div><div class="math">${problem.expressionHTML}</div></div>
+      ${labelsPrefilled ? "" : `<div class="notice"><div><b>Available steps</b></div><div class="small muted">Drag a step into a numbered row. You may also click a step to place it in the next empty row.</div><div id="stepBank" class="step-bank">${shuffledCards}</div></div>`}
+      <div class="notice">
+        <table class="scaffold-table">
+          <thead><tr><th>Step order</th><th>Your intermediate answer</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="row">
+        ${labelsPrefilled ? "" : '<button id="btnHint" class="btn secondary">Place next correct step</button>'}
+        <button id="btnSubmitGuided" class="btn">Submit final answer</button>
+      </div>
+      <div id="guidedErr" class="small bad" style="display:none;margin-top:8px"></div>
+    `));
+    showCalculatorPanel();
+    attachStepDragHandlers();
+    const t0 = now();
+    let hintsUsed = 0;
+
+    if (!labelsPrefilled) {
+      $("btnHint").onclick = () => {
+        const slots = Array.from(document.querySelectorAll(".step-slot"));
+        const nextIndex = slots.findIndex(slot => !slot.querySelector(".step-card"));
+        if (nextIndex < 0) return;
+        const needed = correctSequence[nextIndex];
+        const card = Array.from(document.querySelectorAll("#stepBank .step-card")).find(c => c.dataset.label === needed);
+        if (card) {
+          slots[nextIndex].appendChild(card);
+          hintsUsed += 1;
+          logEvent("guided_table_hint", { practiceTrialNumber, problemId: problem.id, stepIndex: nextIndex + 1, label: needed });
+        }
+      };
+    }
+
+    const outcome = await new Promise(resolve => {
+      let done = false;
+      const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
+      $("btnSubmitGuided").onclick = () => {
+        const arranged = Array.from(document.querySelectorAll(".step-slot")).map(slot => slot.querySelector(".step-card")?.dataset.label || "");
+        if (arranged.some(x => !x)) {
+          $("guidedErr").style.display = "block";
+          $("guidedErr").textContent = "Place a step in every row before submitting.";
+          return;
+        }
+        const raw = $("stepWork" + (correctSequence.length - 1)).value;
+        const parsed = parseFractionInput(raw);
+        if (!parsed.ok) { $("guidedErr").style.display = "block"; $("guidedErr").textContent = "Enter your final answer in the last row before submitting."; return; }
+        finish({ action: "submitted", answerRaw: raw, parsed, arranged });
+      };
+      const checker = setInterval(() => { if (!practiceTimeRemaining() || !studyTimeRemaining()) finish({ action: "timeout" }); }, 200);
+    });
+
+    const rtMs = Math.round(now() - t0);
+    const arrangedLabels = Array.from(document.querySelectorAll(".step-slot")).map(slot => slot.querySelector(".step-card")?.dataset.label || "");
+    const work = correctSequence.map((_, i) => $("stepWork" + i)?.value || "");
+    let correct = "";
+    if (outcome.action === "submitted") correct = sameFrac(outcome.parsed.value, frac(problem.correctNumerator, problem.correctDenominator)) ? 1 : 0;
+    const orderCorrect = outcome.action === "submitted" && JSON.stringify(arrangedLabels) === JSON.stringify(correctSequence) ? 1 : 0;
+
+    state.practiceRows.push({
+      kind: "practice_trial", participantId: state.participantId, timestampISO: new Date().toISOString(),
+      practiceCondition: state.practiceCondition, practiceTrialNumber, problemId: problem.id, difficulty: problem.difficulty, steps: problem.steps,
+      expressionText: asciiMathText(problem.expressionText), correctTextRaw: problem.correctText, correctTextExcel: excelText(problem.correctText),
+      action: outcome.action, attempted: outcome.action === "submitted" ? 1 : 0, pressedRevealAnswer: 0,
+      responseRaw: outcome.action === "submitted" ? outcome.answerRaw.trim() : "",
+      responseNormalizedRaw: outcome.action === "submitted" ? outcome.parsed.normalized : "",
+      answerCorrect: correct, correct, stepOrderCorrect: orderCorrect, hintsUsed, labelsPrefilled: labelsPrefilled ? 1 : 0,
+      correctStepSequenceJSON: JSON.stringify(correctSequence), scaffoldLabelsJSON: JSON.stringify(arrangedLabels), scaffoldWorkJSON: JSON.stringify(work),
+      questionTimeMs: rtMs, questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
+    });
+
+    if (outcome.action === "timeout") return false;
+    await feedbackScreen({ problem, correct, responseText: outcome.parsed.normalized });
+    return true;
+  }
+
   async function runPracticeTrial(problem, practiceTrialNumber) {
     state.phase = "practice";
     setHeader(`Practice problem ${practiceTrialNumber}`);
@@ -1048,6 +1383,7 @@ function generateDSTHardBank() {
       kind: "practice_trial",
       participantId: state.participantId,
       timestampISO: new Date().toISOString(),
+      practiceCondition: state.practiceCondition,
       practiceTrialNumber,
       problemId: problem.id,
       difficulty: problem.difficulty,
@@ -1085,7 +1421,7 @@ function generateDSTHardBank() {
     const practice = generatePracticeBank();
     checkProblemBank(practice);
     state.selectedPracticeProblems = practice;
-    logEvent("practice_block_start", { targetDurationMs: CONFIG.practicePhaseMs, problemIds: practice.map(p => p.id).join(";") });
+    logEvent("practice_block_start", { practiceCondition: state.practiceCondition, targetDurationMs: CONFIG.practicePhaseMs, problemIds: practice.map(p => p.id).join(";") });
 
     let trial = 0;
     while (practiceTimeRemaining() && studyTimeRemaining()) {
@@ -1093,7 +1429,10 @@ function generateDSTHardBank() {
       const cycle = shuffledCopy(practice);
       for (const problem of cycle) {
         if (!practiceTimeRemaining() || !studyTimeRemaining()) break;
-        const completed = await runPracticeTrial(problem, trial);
+        let completed;
+        if (state.practiceCondition === "answer_exposure") completed = await runAnswerExposureTrial(problem, trial);
+        else if (state.practiceCondition === "guided_table") completed = await runGuidedTableTrial(problem, trial);
+        else completed = await runPracticeTrial(problem, trial);
         if (!completed) break;
         trial += 1;
       }
@@ -1199,6 +1538,10 @@ function generateDSTHardBank() {
       nPracticeTrials: state.practiceRows.length,
       nDSTTrials: state.dstPerformanceRows.length,
       notepadText: state.notepadText,
+      practiceConditionNumber: state.practiceConditionNumber,
+      practiceCondition: state.practiceCondition,
+      practiceConditionSource: state.practiceConditionSource,
+      practiceConditionError: state.practiceConditionError || "",
       practiceProblemIds: state.selectedPracticeProblems.map(p => p.id).join(";"),
       dstProblemIds: state.selectedDSTProblems.map(p => p.id).join(";")
     });
@@ -1232,6 +1575,10 @@ function generateDSTHardBank() {
       "plannedPracticeDurationMs",
       "elapsedStudyMs",
       "notepadText",
+      "practiceConditionNumber",
+      "practiceCondition",
+      "practiceConditionSource",
+      "practiceConditionError",
       "nPracticeTrials",
       "nDSTTrials",
       "practiceProblemIds",
@@ -1264,7 +1611,13 @@ function generateDSTHardBank() {
       "correct",
       "questionTimeMs",
       "questionTimeSeconds",
-      "responseRTms"
+      "responseRTms",
+      "hintsUsed",
+      "labelsPrefilled",
+      "stepOrderCorrect",
+      "correctStepSequenceJSON",
+      "scaffoldLabelsJSON",
+      "scaffoldWorkJSON"
     ];
 
     const headers = [
@@ -1407,6 +1760,7 @@ function generateDSTHardBank() {
       return;
     }
 
+    await assignPracticeCondition();
     startTimedStudy();
     await fractionInstructionsScreen();
     if (!studyTimeRemaining()) return;
