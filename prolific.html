@@ -388,22 +388,77 @@
   // ============================================================
   // BASIC HELPERS
   // ============================================================
+  function collectURLParams() {
+    const combined = new Map();
+
+    function addParams(raw) {
+      if (!raw) return;
+      let text = String(raw).replace(/^[?#]/, "");
+
+      // Qualtrics or another redirect layer may encode the entire query string.
+      // Decode up to twice, stopping when decoding no longer changes the text.
+      for (let i = 0; i < 2; i++) {
+        try {
+          const decoded = decodeURIComponent(text);
+          if (decoded === text) break;
+          text = decoded;
+        } catch (_) {
+          break;
+        }
+      }
+
+      const params = new URLSearchParams(text);
+      for (const [key, value] of params.entries()) {
+        combined.set(String(key).trim().toLowerCase(), String(value).trim());
+      }
+    }
+
+    addParams(window.location.search);
+    addParams(window.location.hash);
+
+    // Also handle a nested URL/query passed as a single encoded parameter.
+    for (const value of Array.from(combined.values())) {
+      if (value.includes("PROLIFIC_PID=") || value.includes("prolific_pid=")) {
+        const nestedQuery = value.includes("?") ? value.split("?").slice(1).join("?") : value;
+        addParams(nestedQuery);
+      }
+    }
+
+    return combined;
+  }
+
+  function getParam(params, ...names) {
+    for (const name of names) {
+      const value = params.get(String(name).toLowerCase());
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return "";
+  }
+
   function getURLParams() {
-    const sp = new URLSearchParams(window.location.search);
+    const params = collectURLParams();
     return {
-      participantId: sp.get("PROLIFIC_PID") || sp.get("prolific_pid") || sp.get("participantId") || "MISSING_PROLIFIC_PID",
-      studyId: sp.get("STUDY_ID") || "",
-      sessionId: sp.get("SESSION_ID") || ""
+      participantId: getParam(params, "PROLIFIC_PID", "participantId", "participant_id") || "MISSING_PROLIFIC_PID",
+      studyId: getParam(params, "STUDY_ID", "studyId", "study_id"),
+      sessionId: getParam(params, "SESSION_ID", "sessionId", "session_id"),
+      condition: getParam(params, "condition"),
+      receivedParams: Object.fromEntries(params.entries())
     };
   }
 
   function initStudy() {
-    const { participantId, studyId, sessionId } = getURLParams();
+    const { participantId, studyId, sessionId, receivedParams } = getURLParams();
     state.participantId = participantId;
     state.studyId = studyId;
     state.sessionId = sessionId;
     state.startedAtISO = new Date().toISOString();
-    logEvent("study_page_loaded", { participantId, studyId, sessionId });
+    logEvent("study_page_loaded", {
+      participantId,
+      studyId,
+      sessionId,
+      receivedURL: window.location.href,
+      receivedParams: JSON.stringify(receivedParams)
+    });
   }
 
   const PRACTICE_CONDITIONS = [
@@ -413,11 +468,10 @@
   ];
 
   function assignPracticeCondition() {
-    const sp = new URLSearchParams(window.location.search);
-    const rawCondition = sp.get("condition");
+    const { condition: rawCondition } = getURLParams();
     const conditionNumber = Number(rawCondition);
 
-    if (rawCondition === null || rawCondition.trim() === "") {
+    if (rawCondition === null || String(rawCondition).trim() === "") {
       throw new Error(
         "Missing condition URL parameter. The study URL must include condition=0, condition=1, or condition=2."
       );
