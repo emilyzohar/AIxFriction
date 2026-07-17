@@ -350,7 +350,7 @@
     // Replace with the completion URL supplied by Prolific (normally ends in ?cc=XXXXXXX).
     completionRedirectURL: "https://app.prolific.com/submissions/complete?cc=REPLACE_WITH_PROLIFIC_COMPLETION_CODE",
     totalStudyMs: 15 * 60 * 1000,
-    practicePhaseMs: 10 * 60 * 1000,
+    practicePhaseMs: 5 * 60 * 1000,
     feedbackMs: 700,
     revealAnswerMs: 1200,
     allowMixedNumbers: true,
@@ -406,85 +406,39 @@
     logEvent("study_page_loaded", { participantId, studyId, sessionId });
   }
 
-  function hashStringToUint32(text) {
-    let hash = 2166136261;
-    for (let i = 0; i < text.length; i++) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return hash >>> 0;
-  }
-
   const PRACTICE_CONDITIONS = [
     "solve_practice",
     "answer_exposure",
     "guided_table"
   ];
 
-  async function requestDataPipeCondition() {
-    const response = await fetch("https://pipe.jspsych.org/api/condition/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ experimentID: CONFIG.experimentID })
-    });
-
-    let result = {};
-    try {
-      result = await response.json();
-    } catch (_) {
-      // The status check below will provide a useful error.
-    }
-
-    if (!response.ok) {
-      const detail = result.message || result.error || `${response.status} ${response.statusText}`;
-      throw new Error(`DataPipe condition request failed: ${detail}`);
-    }
-
-    const conditionNumber = Number(result.condition);
-    if (!Number.isInteger(conditionNumber) || conditionNumber < 0 || conditionNumber >= PRACTICE_CONDITIONS.length) {
-      throw new Error(`DataPipe returned invalid condition: ${String(result.condition)}`);
-    }
-
-    return conditionNumber;
-  }
-
-  async function assignPracticeCondition() {
+  function assignPracticeCondition() {
     const sp = new URLSearchParams(window.location.search);
-    const override = (sp.get("condition") || "").toLowerCase();
+    const rawCondition = sp.get("condition");
+    const conditionNumber = Number(rawCondition);
 
-    // Keep this URL override for testing only. Do not include it in the Prolific launch URL.
-    if (PRACTICE_CONDITIONS.includes(override)) {
-      state.practiceConditionNumber = PRACTICE_CONDITIONS.indexOf(override);
-      state.practiceCondition = override;
-      state.practiceConditionSource = "url_override";
-    } else {
-      try {
-        const conditionNumber = await requestDataPipeCondition();
-        state.practiceConditionNumber = conditionNumber;
-        state.practiceCondition = PRACTICE_CONDITIONS[conditionNumber];
-        state.practiceConditionSource = "datapipe_balanced_assignment";
-      } catch (error) {
-        // Fail-safe: preserve participation if DataPipe assignment is temporarily unavailable.
-        // The fallback remains stable across refreshes for the same Prolific participant.
-        const key = `${state.participantId}|${state.studyId || "study"}`;
-        const fallbackNumber = hashStringToUint32(key) % PRACTICE_CONDITIONS.length;
-        state.practiceConditionNumber = fallbackNumber;
-        state.practiceCondition = PRACTICE_CONDITIONS[fallbackNumber];
-        state.practiceConditionSource = "prolific_id_hash_fallback";
-        state.practiceConditionError = error instanceof Error ? error.message : String(error);
-        logEvent("practice_condition_assignment_error", {
-          errorMessage: state.practiceConditionError,
-          fallbackConditionNumber: fallbackNumber,
-          fallbackCondition: state.practiceCondition
-        });
-      }
+    if (rawCondition === null || rawCondition.trim() === "") {
+      throw new Error(
+        "Missing condition URL parameter. The study URL must include condition=0, condition=1, or condition=2."
+      );
     }
+
+    if (!Number.isInteger(conditionNumber) || conditionNumber < 0 || conditionNumber >= PRACTICE_CONDITIONS.length) {
+      throw new Error(
+        `Invalid condition URL parameter: ${rawCondition}. Use condition=0, condition=1, or condition=2.`
+      );
+    }
+
+    state.practiceConditionNumber = conditionNumber;
+    state.practiceCondition = PRACTICE_CONDITIONS[conditionNumber];
+    state.practiceConditionSource = "url_parameter";
+    state.practiceConditionError = null;
 
     logEvent("practice_condition_assigned", {
       practiceConditionNumber: state.practiceConditionNumber,
       practiceCondition: state.practiceCondition,
       practiceConditionSource: state.practiceConditionSource,
-      practiceConditionError: state.practiceConditionError || ""
+      practiceConditionError: ""
     });
   }
 
@@ -1044,9 +998,9 @@ function generateDSTHardBank() {
     logEvent("fraction_instructions_screen", { practiceCondition: state.practiceCondition });
 
     const conditionText = {
-      solve_practice: `<b>Solve-practice activity:</b> For the first five minutes, solve each fraction problem and submit your answer.`,
-      answer_exposure: `<b>Answer-exposure activity:</b> For the first five minutes, each problem and its correct answer will be shown. Review each one, then continue.`,
-      guided_table: `<b>Guided-table activity:</b> For the first five minutes, use a six-step table to work through each problem. On the first three problems, the step labels will already be filled in. After that, you will enter the step labels yourself; a hint button can reveal the next label.`
+      solve_practice: `<b>Your first activity:</b> For the first five minutes, solve each fraction problem and submit your answer.`,
+      answer_exposure: `<b>Your first activity:</b> For the first five minutes, each fraction problem and its correct answer will be shown. Review how the problem and answer relate, then continue to the next problem.`,
+      guided_table: `<b>Your first activity:</b> For the first five minutes, work through each problem using a table of problem-specific solution steps. For the first three problems, the steps will be shown in a suggested order. After that, arrange the available steps yourself. A hint button can place the next suggested step.`
     }[state.practiceCondition];
 
     render(html(`
@@ -1054,16 +1008,50 @@ function generateDSTHardBank() {
         <div><b>How to enter answers</b></div>
         <div class="small">
           Enter answers as fractions, mixed numbers, or whole numbers. Do not use decimals.
-          <br><br>Examples: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.
+          <br><br>
+          Examples of valid answers: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.
         </div>
       </div>
+
       <div class="notice">
-        <div><b>Fraction rules</b></div>
+        <div><b>Addition and subtraction</b></div>
         <div class="small">
-          For addition and subtraction, use a common denominator. Follow the order of operations.
-          For division, flip the second fraction and multiply. Multiply numerators together and denominators together, then simplify the final answer.
+          Find a common denominator, rewrite the fractions using that denominator, and then add or subtract the numerators.
+          <br>
+          Example: ${fracHTML(frac(3,5))} + ${fracHTML(frac(1,4))} = ${rawFracHTML(12,20)} + ${rawFracHTML(5,20)} = ${rawFracHTML(17,20)}
+        </div>
+        <div class="hr"></div>
+        <div><b>Multiplication</b></div>
+        <div class="small">
+          Multiply the numerators together and multiply the denominators together. Simplify when possible.
+          <br>
+          Example: ${fracHTML(frac(2,3))} × ${fracHTML(frac(1,2))} = ${rawFracHTML(2,6)} = ${fracHTML(frac(1,3))}
+        </div>
+        <div class="hr"></div>
+        <div><b>Division</b></div>
+        <div class="small">
+          Flip the second fraction and then multiply.
+          <br>
+          Example: ${fracHTML(frac(1,2))} ÷ ${fracHTML(frac(1,4))} = ${fracHTML(frac(1,2))} × ${rawFracHTML(4,1,true)} = ${rawFracHTML(4,2)} = 2
         </div>
       </div>
+
+      <div class="notice">
+        <div><b>Possible steps when solving a fraction problem</b></div>
+        <div class="small">
+          The exact steps and their order depend on the problem. A problem may use some steps more than once and may not require every step.
+          <ol style="margin-bottom:0">
+            <li>Follow the order of operations and identify which operation should be completed next.</li>
+            <li>For addition or subtraction, find a common denominator and rewrite the fractions.</li>
+            <li>For division, flip the second fraction and change division to multiplication.</li>
+            <li>Multiply the numerators.</li>
+            <li>Multiply the denominators.</li>
+            <li>Complete any remaining operations.</li>
+            <li>Simplify and enter the final answer.</li>
+          </ol>
+        </div>
+      </div>
+
       <div class="notice"><div class="small">${conditionText}</div></div>
       <div class="row"><button id="btnStartPractice" class="btn">Begin first activity</button></div>
     `));
@@ -1760,7 +1748,7 @@ function generateDSTHardBank() {
       return;
     }
 
-    await assignPracticeCondition();
+    assignPracticeCondition();
     startTimedStudy();
     await fractionInstructionsScreen();
     if (!studyTimeRemaining()) return;
