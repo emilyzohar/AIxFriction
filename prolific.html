@@ -1070,73 +1070,296 @@ function generateDSTHardBank() {
 
   }
 
-  async function fractionInstructionsScreen() {
-    state.phase = "fraction_instructions";
-    setHeader("Fraction Instructions");
-    setFooter("", "");
-    logEvent("fraction_instructions_screen", { practiceCondition: state.practiceCondition });
+async function fractionInstructionsScreen() {
+  state.phase = "fraction_instructions";
+  setHeader("Fraction Instructions");
+  setFooter("", "");
+  logEvent("fraction_instructions_screen", {
+    practiceCondition: state.practiceCondition
+  });
 
-    const conditionText = {
-      solve_practice: `<b>Your first activity:</b> For the first five minutes, solve each fraction problem and submit your answer.`,
-      answer_exposure: `<b>Your first activity:</b> For the first five minutes, each fraction problem and its correct answer will be shown. Review how the problem and answer relate, then continue to the next problem.`,
-      guided_table: `<b>Your first activity:</b> For the first five minutes, work through each problem using a table of problem-specific solution steps. For the first three problems, the steps will be shown in a suggested order. After that, arrange the available steps yourself. A hint button can place the next suggested step.`
-    }[state.practiceCondition];
+  const conditionText = {
+    solve_practice: `
+      <div><b>Your first activity</b></div>
+      <div class="small">
+        For the first five minutes, you will solve fraction problems.
+        For each problem, calculate the answer and submit your response.
+      </div>
+    `,
 
-    render(html(`
+    answer_exposure: `
+      <div><b>Your first activity</b></div>
+      <div class="small">
+        For the first five minutes, you will solve fraction problems.
+        For each problem, calculate the answer and submit your response.
+      </div>
+    `,
+
+    guided_table: `
+      <div><b>Your first activity</b></div>
+      <div class="small">
+        For the first five minutes, you will solve fraction problems.
+        For each problem, calculate the answer and submit your response.
+      </div>
+    `
+  }[state.practiceCondition];
+
+
+  // Each item becomes its own instruction page.
+  const instructionPages = [
+
+    // PAGE 1
+    `
       <div class="notice">
-        <div><b>How to enter answers</b></div>
+        <div><b>How to enter your answers</b></div>
         <div class="small">
-          Enter answers as fractions, mixed numbers, or whole numbers. Do not use decimals.
+          Enter answers as fractions, mixed numbers, or whole numbers.
           <br><br>
-          Examples of valid answers: <b>3/4</b>, <b>1 1/2</b>, <b>2</b>.
+          <b>Do not use decimals.</b>
+          <br><br>
+          Examples of valid answers:
+          <br>
+          <b>3/4</b>
+          <br>
+          <b>1 1/2</b>
+          <br>
+          <b>2</b>
         </div>
       </div>
+    `,
 
+    // PAGE 2
+    `
       <div class="notice">
         <div><b>Addition and subtraction</b></div>
         <div class="small">
-          Find a common denominator, rewrite the fractions using that denominator, and then add or subtract the numerators.
+          To add or subtract fractions:
+          <br><br>
+          1. Find a common denominator.
           <br>
-          Example: ${fracHTML(frac(3,5))} + ${fracHTML(frac(1,4))} = ${rawFracHTML(12,20)} + ${rawFracHTML(5,20)} = ${rawFracHTML(17,20)}
+          2. Rewrite the fractions using that denominator.
+          <br>
+          3. Add or subtract the numerators.
+          <br><br>
+
+          <b>Example:</b>
+          <br><br>
+
+          <div class="math">
+            ${fracHTML(frac(3,5))} + ${fracHTML(frac(1,4))}
+            =
+            ${rawFracHTML(12,20)} + ${rawFracHTML(5,20)}
+            =
+            ${rawFracHTML(17,20)}
+          </div>
         </div>
-        <div class="hr"></div>
+      </div>
+    `,
+
+    // PAGE 3
+    `
+      <div class="notice">
         <div><b>Multiplication</b></div>
         <div class="small">
-          Multiply the numerators together and multiply the denominators together. Simplify when possible.
+          To multiply fractions:
+          <br><br>
+          1. Multiply the numerators together.
           <br>
-          Example: ${fracHTML(frac(2,3))} × ${fracHTML(frac(1,2))} = ${rawFracHTML(2,6)} = ${fracHTML(frac(1,3))}
+          2. Multiply the denominators together.
+          <br>
+          3. Simplify the result when possible.
+          <br><br>
+
+          <b>Example:</b>
+          <br><br>
+
+          <div class="math">
+            ${fracHTML(frac(2,3))} × ${fracHTML(frac(1,2))}
+            =
+            ${rawFracHTML(2,6)}
+            =
+            ${fracHTML(frac(1,3))}
+          </div>
         </div>
-        <div class="hr"></div>
+      </div>
+    `,
+
+    // PAGE 4
+    `
+      <div class="notice">
         <div><b>Division</b></div>
         <div class="small">
-          Flip the second fraction and then multiply.
+          To divide fractions:
+          <br><br>
+          1. Flip the second fraction.
           <br>
-          Example: ${fracHTML(frac(1,2))} ÷ ${fracHTML(frac(1,4))} = ${fracHTML(frac(1,2))} × ${rawFracHTML(4,1,true)} = ${rawFracHTML(4,2)} = 2
+          2. Change division to multiplication.
+          <br>
+          3. Multiply the fractions.
+          <br>
+          4. Simplify the result when possible.
+          <br><br>
+
+          <b>Example:</b>
+          <br><br>
+
+          <div class="math">
+            ${fracHTML(frac(1,2))} ÷ ${fracHTML(frac(1,4))}
+            =
+            ${fracHTML(frac(1,2))} × ${rawFracHTML(4,1,true)}
+            =
+            ${rawFracHTML(4,2)}
+            =
+            2
+          </div>
         </div>
+      </div>
+    `,
+
+    // PAGE 5
+`
+  <div class="notice">
+    <div><b>Follow the steps in the correct order</b></div>
+
+    <div class="small">
+      Some fraction problems involve more than one operation.
+      <br><br>
+
+      <b>For these problems, it is important to complete each operation in the correct order.</b>
+      Use the parentheses to guide you through the problem from left to right.
+      <br><br>
+
+      Depending on the problem, you may need to:
+      <ol style="margin-bottom:0">
+        <li><b>Identify the next operation</b> you need to complete.</li>
+
+        <li>
+          <b>For addition or subtraction:</b>
+          find a common denominator and rewrite the fractions.
+        </li>
+
+        <li>
+          <b>For division:</b>
+          flip the second fraction and change division to multiplication.
+        </li>
+
+        <li>
+          <b>For multiplication:</b>
+          multiply the fractions.
+        </li>
+
+        <li>
+          <b>Continue to the next operation</b>
+          until the problem is complete.
+        </li>
+
+        <li>
+          <b>Simplify your result</b>
+          when possible.
+        </li>
+
+        <li>
+          <b>Enter your final answer.</b>
+        </li>
+      </ol>
+
+      <br>
+
+      <div class="notice" style="margin-bottom:0">
+        <b>Remember:</b>
+        Not every problem will require every step.
+        Some steps may need to be used more than once.
+        <br><br>
+        <b>The correct steps and their order depend on the specific problem.</b>
+      </div>
+    </div>
+  </div>
+`,
+
+    // PAGE 6
+    `
+      <div class="notice">
+        ${conditionText}
       </div>
 
       <div class="notice">
-        <div><b>Possible steps when solving a fraction problem</b></div>
+        <div><b>You are now ready to begin.</b></div>
         <div class="small">
-          The exact steps and their order depend on the problem. A problem may use some steps more than once and may not require every step.
-          <ol style="margin-bottom:0">
-            <li>Follow the order of operations and identify which operation should be completed next.</li>
-            <li>For addition or subtraction, find a common denominator and rewrite the fractions.</li>
-            <li>For division, flip the second fraction and change division to multiplication.</li>
-            <li>Multiply the numerators.</li>
-            <li>Multiply the denominators.</li>
-            <li>Complete any remaining operations.</li>
-            <li>Simplify and enter the final answer.</li>
-          </ol>
+          Remember that the first activity lasts for five minutes.
+          After that, you will automatically move on to the main task.
+        </div>
+      </div>
+    `
+  ];
+
+
+  // Display each instruction page one at a time.
+  for (let pageIndex = 0; pageIndex < instructionPages.length; pageIndex++) {
+
+    const isLastPage = pageIndex === instructionPages.length - 1;
+
+    logEvent("fraction_instruction_page", {
+      pageNumber: pageIndex + 1,
+      totalPages: instructionPages.length
+    });
+
+    render(html(`
+      <div class="row">
+        <div class="pill">
+          Instructions ${pageIndex + 1} of ${instructionPages.length}
         </div>
       </div>
 
-      <div class="notice"><div class="small">${conditionText}</div></div>
-      <div class="row"><button id="btnStartPractice" class="btn">Begin first activity</button></div>
+      ${instructionPages[pageIndex]}
+
+      <div id="instructionWaitMessage" class="small muted" style="margin-top:18px">
+        Please review these instructions. You will be able to continue shortly.
+      </div>
+
+      <div class="row">
+        <button
+          id="btnInstructionNext"
+          class="btn"
+          style="display:none"
+        >
+          ${isLastPage ? "Begin first activity →" : "Next →"}
+        </button>
+      </div>
     `));
 
-    await new Promise(resolve => { $("btnStartPractice").onclick = resolve; });
+    // Wait 5 seconds before allowing the participant to continue.
+    await wait(5000);
+
+    const waitMessage = $("instructionWaitMessage");
+    const nextButton = $("btnInstructionNext");
+
+    // The participant may theoretically leave the page before 5 seconds.
+    // Check that the elements still exist before modifying them.
+    if (waitMessage) {
+      waitMessage.textContent = isLastPage
+        ? "You may now begin the first activity."
+        : "You may now continue to the next instruction.";
+    }
+
+    if (nextButton) {
+      nextButton.style.display = "inline-block";
+    }
+
+    // Wait for the participant to click Next.
+    await new Promise(resolve => {
+      if (nextButton) {
+        nextButton.onclick = resolve;
+      } else {
+        resolve();
+      }
+    });
   }
+
+  logEvent("fraction_instructions_completed", {
+    totalInstructionPages: instructionPages.length
+  });
+}
+
 
   async function dstInstructionsScreen() {
     state.phase = "main_instructions";
@@ -1270,12 +1493,12 @@ function generateDSTHardBank() {
           <div class="small muted">Calculated answer</div>
           <div class="math">${escapeHTML(problem.correctText)}</div>
           <div class="notice">
-            <div><b>Copy the calculated answer below.</b></div>
+            <div><b>Input the calculated answer below.</b></div>
             <div class="small muted">Then use the remaining time to think about how the answer follows from the problem.</div>
             <input id="exposureCopyBox" class="input" autocomplete="off" placeholder="Type the answer exactly as shown" style="margin-top:12px" />
-            <div id="exposureCopyMessage" class="small muted" style="margin-top:8px">You must copy the answer correctly before continuing.</div>
+            <div id="exposureCopyMessage" class="small muted" style="margin-top:8px">You must type the answer correctly before continuing.</div>
           </div>
-          <div id="reflectionStatus" class="small muted">Please reflect on the answer.</div>
+          <div id="reflectionStatus" class="small muted">Please think about what calculations got to this answer.</div>
         </div>
       </div>
       <div class="row"><button id="btnNextExposure" class="btn" disabled>Next problem</button></div>
@@ -1325,12 +1548,12 @@ function generateDSTHardBank() {
               const correctFrac = frac(problem.correctNumerator, problem.correctDenominator);
               copiedCorrectly = Boolean(parsed.ok && sameFrac(parsed.value, correctFrac));
               copyMessage.textContent = copiedCorrectly
-                ? "Answer copied correctly. Please reflect on the answer."
-                : "Copy the calculated answer correctly before continuing.";
+                ? "Answer inputted correctly. Please reflect on the answer."
+                : "Input the calculated answer correctly before continuing.";
               copyMessage.className = copiedCorrectly ? "small good" : "small muted";
             };
             copyBox.addEventListener("input", evaluateCopy);
-            setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Copy the answer and reflect on it");
+            setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Input the answer and think about what calculations got to this answer");
             logEvent("answer_exposure_answer_shown", {
               practiceTrialNumber,
               problemId: problem.id,
@@ -1341,12 +1564,12 @@ function generateDSTHardBank() {
         }
 
         if (current < nextAt) {
-          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please reflect on the answer");
+          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please think about what calculations got to this answer");
         } else if (!copiedCorrectly) {
-          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Copy the answer correctly to continue");
+          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Input the answer correctly to continue");
         } else {
           $("btnNextExposure").disabled = false;
-          $("reflectionStatus").innerHTML = '<span class="good"><b>Reflection period complete.</b></span>';
+          $("reflectionStatus").innerHTML = '<span class="good"><b>Contemplation period complete.</b></span>';
           setFooter("Time remaining: " + formatClock(remainingStudyMs()), "You may continue");
         }
       }, 100);
@@ -1374,6 +1597,36 @@ function generateDSTHardBank() {
     return actionName !== "timeout";
   }
 
+  function guidedStepSequence(problem) {
+  const sequence = [];
+
+  for (const op of problem.operationSequence) {
+    // Identify the next operation
+    sequence.push("Identify the next operation");
+
+    if (op === "+" || op === "-") {
+      sequence.push("Find a common denominator and rewrite the fractions");
+      sequence.push(op === "+" ? "Add the fractions" : "Subtract the fractions");
+    }
+
+    if (op === "*") {
+      sequence.push("Multiply the numerators");
+      sequence.push("Multiply the denominators");
+    }
+
+    if (op === "/") {
+      sequence.push("Flip the second fraction and change division to multiplication");
+      sequence.push("Multiply the numerators");
+      sequence.push("Multiply the denominators");
+    }
+
+    sequence.push("Simplify the result");
+  }
+
+  sequence.push("Enter the final answer");
+
+  return sequence;
+}
   function makeStepCard(label, index) {
     return `<div class="step-card" draggable="true" data-step-id="step-${index}" data-label="${escapeHTML(label)}">${escapeHTML(label)}</div>`;
   }
