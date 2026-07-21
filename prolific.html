@@ -1231,11 +1231,9 @@ async function fractionInstructionsScreen() {
 
       Depending on the problem, you may need to:
       <ol style="margin-bottom:0">
-        <li><b>Identify the next operation</b> you need to complete.</li>
-
         <li>
           <b>For addition or subtraction:</b>
-          find a common denominator and rewrite the fractions.
+          find a common denominator, rewrite the fractions, and then add or subtract.
         </li>
 
         <li>
@@ -1601,9 +1599,6 @@ async function fractionInstructionsScreen() {
   const sequence = [];
 
   for (const op of problem.operationSequence) {
-    // Identify the next operation
-    sequence.push("Identify the next operation");
-
     if (op === "+" || op === "-") {
       sequence.push("Find a common denominator and rewrite the fractions");
       sequence.push(op === "+" ? "Add the fractions" : "Subtract the fractions");
@@ -1671,7 +1666,7 @@ async function fractionInstructionsScreen() {
     const labelsPrefilled = practiceTrialNumber <= 3;
     const correctSequence = guidedStepSequence(problem);
     setHeader(`Guided problem ${practiceTrialNumber}`);
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), labelsPrefilled ? "Steps shown in a suggested order" : "Drag the steps into the order you would use");
+    setFooter("Time remaining: " + formatClock(remainingStudyMs()), labelsPrefilled ? "Steps shown in a suggested order" : "Use whichever steps are helpful");
     logEvent("guided_table_trial_start", { practiceTrialNumber, problemId: problem.id, labelsPrefilled, correctSequenceJSON: JSON.stringify(correctSequence) });
 
     const rows = correctSequence.map((_, i) => `
@@ -1686,7 +1681,7 @@ async function fractionInstructionsScreen() {
     render(html(`
       <div class="row"><div class="pill">Guided problem ${practiceTrialNumber}</div></div>
       <div class="notice"><div class="small muted">Calculate:</div><div class="math">${problem.expressionHTML}</div></div>
-      ${labelsPrefilled ? "" : `<div class="notice"><div><b>Available steps</b></div><div class="small muted">Drag a step into a numbered row. You may also click a step to place it in the next empty row.</div><div id="stepBank" class="step-bank">${shuffledCards}</div></div>`}
+      ${labelsPrefilled ? "" : `<div class="notice"><div><b>Available steps</b></div><div class="small muted">Drag or click any steps you think are useful. You do not need to place a step in every row.</div><div id="stepBank" class="step-bank">${shuffledCards}</div></div>`}
       <div class="notice">
         <table class="scaffold-table">
           <thead><tr><th>Step order</th><th>Your intermediate answer</th></tr></thead>
@@ -1724,11 +1719,6 @@ async function fractionInstructionsScreen() {
       const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
       $("btnSubmitGuided").onclick = () => {
         const arranged = Array.from(document.querySelectorAll(".step-slot")).map(slot => slot.querySelector(".step-card")?.dataset.label || "");
-        if (arranged.some(x => !x)) {
-          $("guidedErr").style.display = "block";
-          $("guidedErr").textContent = "Place a step in every row before submitting.";
-          return;
-        }
         const raw = $("stepWork" + (correctSequence.length - 1)).value;
         const parsed = parseFractionInput(raw);
         if (!parsed.ok) { $("guidedErr").style.display = "block"; $("guidedErr").textContent = "Enter your final answer in the last row before submitting."; return; }
