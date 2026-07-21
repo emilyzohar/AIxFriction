@@ -409,6 +409,13 @@
     _eventIndex: 0
   };
 
+
+  window.addEventListener("beforeunload", e => {
+  if (state.taskStartedAtMs !== null && !state.ended) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
   // ============================================================
   // BASIC HELPERS
   // ============================================================
@@ -967,8 +974,12 @@ function generateDSTHardBank() {
       calcInput.focus();
     };
     calcInput.addEventListener("keydown", e => {
-      if (e.key === "Enter") calculate();
-    });
+  if (e.key === "Enter") {
+    e.preventDefault();
+    e.stopPropagation();
+    calculate();
+  }
+});
 
     document.querySelectorAll("[data-calc-key]").forEach(btn => {
       btn.onclick = () => {
