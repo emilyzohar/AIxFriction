@@ -205,7 +205,7 @@
       margin-bottom: 8px;
     }
 
-    .calculator-panel-fixed {
+    .notepad-panel-fixed {
       position: fixed;
       right: 18px;
       bottom: 18px;
@@ -259,6 +259,7 @@
       font-size: 18px;
       margin-top: 4px;
     }
+
 
     .scaffold-table {
       width: 100%;
@@ -339,7 +340,7 @@
     }
 
     @media (max-width: 760px) {
-      .calculator-panel-fixed {
+      .notepad-panel-fixed {
         position: static;
         width: auto;
         margin-top: 18px;
@@ -372,8 +373,11 @@
      experimentID: "1Owm0RGeMQyL", // DataPipe experiment ID
     // Replace with the completion URL supplied by Prolific (normally ends in ?cc=XXXXXXX).
     completionRedirectURL: "https://app.prolific.com/submissions/complete?cc=C1FUTHEC",
-    totalStudyMs: 25 * 60 * 1000,
+    totalStudyMs: 35 * 60 * 1000,
     practicePhaseMs: 10 * 60 * 1000,
+    minimumPracticeProblems: 4,
+    mainTaskTrials: 10,
+    guidedScaffoldTrials: 3,
     feedbackMs: 700,
     revealAnswerMs: 1200,
     allowMixedNumbers: true,
@@ -402,6 +406,10 @@
     ended: false,
     saving: false,
     notepadText: "",
+    notepadHistory: [],
+    calculatorHistory: [],
+    currentCalculatorEntries: [],
+    currentCalculatorContext: null,
     practiceCondition: null,
     practiceConditionNumber: null,
     practiceConditionSource: null,
@@ -536,8 +544,9 @@
       practicePhaseMs: CONFIG.practicePhaseMs
     });
     state.timeoutHandle = window.setTimeout(() => {
+      // Active trial screens poll studyTimeRemaining() and finish cleanly so
+      // the current response/notepad data can be written before saving.
       logEvent("study_time_expired", { elapsedMs: elapsedStudyMs() });
-      endScreen({ timedOut: true });
     }, CONFIG.totalStudyMs);
   }
 
@@ -549,8 +558,11 @@
     return state.taskDeadlineMs == null ? CONFIG.totalStudyMs : Math.max(0, state.taskDeadlineMs - Date.now());
   }
 
-  function practiceTimeRemaining() {
-    return state.practiceDeadlineMs != null && Date.now() < state.practiceDeadlineMs;
+  function shouldContinuePracticeBlock() {
+    if (!studyTimeRemaining()) return false;
+    const tenMinutesElapsed = state.practiceDeadlineMs != null && Date.now() >= state.practiceDeadlineMs;
+    const minimumCompleted = state.practiceRows.length >= CONFIG.minimumPracticeProblems;
+    return !tenMinutesElapsed || !minimumCompleted;
   }
 
   function studyTimeRemaining() {
@@ -733,6 +745,24 @@
     throw new Error(`Unknown operator: ${op}`);
   }
 
+  function stepObject(stepNumber, left, op, right, result) {
+    const leftText = typeof left === "string" ? left : fracText(left);
+    const leftHTML = typeof left === "string" ? escapeHTML(left) : fracHTML(left);
+    return {
+      stepNumber,
+      op,
+      leftText,
+      leftHTML,
+      rightText: right.text,
+      rightHTML: right.html,
+      expressionText: `${leftText} ${op} ${right.text}`,
+      expressionHTML: `${leftHTML} ${opHTML(op)} ${right.html}`,
+      correctNumerator: result.n,
+      correctDenominator: result.d,
+      correctText: fracText(result)
+    };
+  }
+
   function makeOne(id, difficulty, A, op, B) {
     const a = F(A[0], A[1]);
     const b = F(B[0], B[1]);
@@ -744,6 +774,7 @@
       operationSequence: [op],
       expressionText: `${a.text} ${op} ${b.text}`,
       expressionHTML: `${a.html} ${opHTML(op)} ${b.html}`,
+      intermediateSteps: [stepObject(1, a.f, op, b, answer)],
       correctNumerator: answer.n,
       correctDenominator: answer.d,
       correctText: fracText(answer)
@@ -763,6 +794,10 @@
       operationSequence: [op1, op2],
       expressionText: `(${a.text} ${op1} ${b.text}) ${op2} ${c.text}`,
       expressionHTML: `(${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}`,
+      intermediateSteps: [
+        stepObject(1, a.f, op1, b, mid),
+        stepObject(2, mid, op2, c, answer)
+      ],
       correctNumerator: answer.n,
       correctDenominator: answer.d,
       correctText: fracText(answer)
@@ -784,6 +819,11 @@
       operationSequence: [op1, op2, op3],
       expressionText: `((${a.text} ${op1} ${b.text}) ${op2} ${c.text}) ${op3} ${d.text}`,
       expressionHTML: `((${a.html} ${opHTML(op1)} ${b.html}) ${opHTML(op2)} ${c.html}) ${opHTML(op3)} ${d.html}`,
+      intermediateSteps: [
+        stepObject(1, a.f, op1, b, mid1),
+        stepObject(2, mid1, op2, c, mid2),
+        stepObject(3, mid2, op3, d, answer)
+      ],
       correctNumerator: answer.n,
       correctDenominator: answer.d,
       correctText: fracText(answer)
@@ -792,77 +832,66 @@
 
   function generatePracticeBank() {
     return [
-      // Easy: single-operation problems
-      makeOne("PRAC_E01", "easy", [1,2], "+", [1,4]),
-      makeOne("PRAC_E02", "easy", [3,4], "-", [1,2]),
-      makeOne("PRAC_E03", "easy", [2,3], "+", [1,6]),
-      makeOne("PRAC_E04", "easy", [5,6], "-", [1,3]),
-      makeOne("PRAC_E05", "easy", [2,5], "*", [3,4]),
-      makeOne("PRAC_E06", "easy", [3,8], "/", [1,4]),
-      makeOne("PRAC_E07", "easy", [7,10], "+", [1,5]),
-      makeOne("PRAC_E08", "easy", [11,12], "-", [1,4]),
-      makeOne("PRAC_E09", "easy", [4,7], "*", [7,8]),
-      makeOne("PRAC_E10", "easy", [5,9], "/", [10,27]),
+      // Slightly harder practice: all problems require at least two operations.
+      makeTwo("PRAC_M01", "medium", [5,7], "+", [4,11], "*", [7,9]),
+      makeTwo("PRAC_M02", "medium", [11,12], "-", [2,9], "/", [5,8]),
+      makeTwo("PRAC_M03", "medium", [7,10], "+", [5,13], "*", [9,14]),
+      makeTwo("PRAC_M04", "medium", [13,15], "-", [3,10], "+", [5,12]),
+      makeTwo("PRAC_M05", "medium", [5,8], "*", [7,12], "+", [3,11]),
+      makeTwo("PRAC_M06", "medium", [7,9], "/", [14,25], "-", [2,13]),
+      makeTwo("PRAC_M07", "medium", [4,11], "+", [7,15], "/", [13,18]),
+      makeTwo("PRAC_M08", "medium", [17,20], "-", [5,12], "*", [11,14]),
+      makeTwo("PRAC_M09", "medium", [8,13], "+", [7,18], "-", [2,9]),
+      makeTwo("PRAC_M10", "medium", [11,14], "/", [22,27], "+", [5,16]),
 
-      // Medium: two-operation problems evaluated left to right
-      makeTwo("PRAC_M01", "medium", [2,3], "+", [1,4], "*", [3,5]),
-      makeTwo("PRAC_M02", "medium", [5,6], "-", [1,3], "/", [2,5]),
-      makeTwo("PRAC_M03", "medium", [3,5], "+", [1,10], "*", [4,7]),
-      makeTwo("PRAC_M04", "medium", [7,8], "-", [1,4], "+", [2,3]),
-      makeTwo("PRAC_M05", "medium", [4,9], "*", [3,8], "+", [1,6]),
-      makeTwo("PRAC_M06", "medium", [5,12], "/", [5,18], "-", [1,4]),
-      makeTwo("PRAC_M07", "medium", [2,7], "+", [3,14], "/", [5,8]),
-      makeTwo("PRAC_M08", "medium", [11,15], "-", [2,5], "*", [9,10]),
-      makeTwo("PRAC_M09", "medium", [3,4], "+", [5,12], "-", [1,3]),
-      makeTwo("PRAC_M10", "medium", [7,9], "/", [14,15], "+", [1,6]),
-
-      // Harder practice: three-operation chains evaluated left to right
-      makeThreeChain("PRAC_H01", "hard", [1,2], "+", [1,3], "*", [3,4], "/", [2,5]),
-      makeThreeChain("PRAC_H02", "hard", [3,4], "-", [1,6], "/", [7,12], "+", [2,7]),
-      makeThreeChain("PRAC_H03", "hard", [5,8], "+", [1,4], "*", [2,3], "-", [1,5]),
-      makeThreeChain("PRAC_H04", "hard", [7,10], "-", [1,5], "/", [3,4], "+", [1,6]),
-      makeThreeChain("PRAC_H05", "hard", [2,9], "+", [5,6], "*", [3,8], "/", [1,4]),
-      makeThreeChain("PRAC_H06", "hard", [11,12], "-", [1,3], "*", [4,7], "+", [2,9]),
-      makeThreeChain("PRAC_H07", "hard", [4,5], "/", [8,15], "-", [1,4], "+", [3,10]),
-      makeThreeChain("PRAC_H08", "hard", [3,7], "+", [5,14], "/", [11,12], "-", [1,8]),
-      makeThreeChain("PRAC_H09", "hard", [13,15], "-", [2,5], "*", [5,9], "+", [1,6]),
-      makeThreeChain("PRAC_H10", "hard", [5,6], "+", [1,8], "/", [23,24], "-", [1,3])
+      // Three-operation chains. The first item mirrors the intended guided format.
+      makeThreeChain("PRAC_H01", "hard", [7,11], "+", [18,25], "/", [21,25], "-", [16,21]),
+      makeThreeChain("PRAC_H02", "hard", [11,20], "-", [5,12], "/", [7,12], "+", [11,25]),
+      makeThreeChain("PRAC_H03", "hard", [15,16], "+", [1,12], "*", [3,14], "-", [1,15]),
+      makeThreeChain("PRAC_H04", "hard", [6,11], "-", [11,21], "/", [4,15], "+", [9,11]),
+      makeThreeChain("PRAC_H05", "hard", [7,11], "+", [5,11], "*", [7,15], "/", [5,12]),
+      makeThreeChain("PRAC_H06", "hard", [2,15], "-", [1,20], "*", [14,15], "+", [11,12]),
+      makeThreeChain("PRAC_H07", "hard", [7,18], "/", [7,18], "-", [7,12], "+", [6,11]),
+      makeThreeChain("PRAC_H08", "hard", [1,12], "+", [17,25], "/", [7,20], "-", [13,24]),
+      makeThreeChain("PRAC_H09", "hard", [17,20], "-", [5,12], "*", [7,24], "+", [5,12]),
+      makeThreeChain("PRAC_H10", "hard", [11,24], "+", [7,12], "/", [9,14], "-", [17,18]),
+      makeThreeChain("PRAC_H11", "hard", [19,20], "-", [2,11], "/", [13,18], "+", [19,20]),
+      makeThreeChain("PRAC_H12", "hard", [5,11], "+", [11,13], "*", [13,15], "-", [4,25]),
+      makeThreeChain("PRAC_H13", "hard", [7,12], "-", [1,18], "/", [5,21], "-", [7,18]),
+      makeThreeChain("PRAC_H14", "hard", [5,11], "+", [13,14], "*", [7,12], "/", [9,16]),
+      makeThreeChain("PRAC_H15", "hard", [17,18], "-", [5,18], "*", [7,11], "+", [7,13])
     ];
   }
 
-function generateDSTHardBank() {
-  return [
-    makeThreeChain("DST_H001", "hard", [10,11], "-", [5,22], "/", [19,25], "+", [2,11]),
-    makeThreeChain("DST_H002", "hard", [7,9], "-", [2,7], "*", [3,25], "+", [8,15]),
-    makeThreeChain("DST_H003", "hard", [4,11], "+", [3,11], "/", [7,24], "-", [8,25]),
-    makeThreeChain("DST_H004", "hard", [7,24], "+", [3,8], "*", [21,25], "/", [17,24]),
-    makeThreeChain("DST_H005", "hard", [14,15], "+", [7,15], "*", [7,11], "-", [5,14]),
-
-    makeThreeChain("DST_H006", "hard", [24,25], "-", [5,18], "/", [7,25], "-", [11,21]),
-    makeThreeChain("DST_H007", "hard", [14,15], "+", [7,9], "*", [18,25], "-", [7,20]),
-    makeThreeChain("DST_H008", "hard", [2,9], "-", [4,21], "*", [17,18], "/", [1,22]),
-    makeThreeChain("DST_H009", "hard", [17,20], "-", [11,18], "/", [4,15], "-", [13,21]),
-    makeThreeChain("DST_H010", "hard", [1,16], "+", [2,7], "/", [13,22], "-", [1,18]),
-
-    makeThreeChain("DST_H011", "hard", [11,25], "+", [13,20], "*", [20,21], "-", [1,25]),
-    makeThreeChain("DST_H012", "hard", [5,24], "+", [1,20], "/", [7,16], "-", [8,21]),
-    makeThreeChain("DST_H013", "hard", [17,18], "-", [19,24], "*", [1,10], "+", [13,15]),
-    makeThreeChain("DST_H014", "hard", [13,14], "-", [1,9], "/", [5,12], "+", [9,14]),
-    makeThreeChain("DST_H015", "hard", [10,11], "-", [5,24], "/", [17,22], "-", [11,20]),
-
-    makeThreeChain("DST_H016", "hard", [1,15], "+", [2,25], "/", [8,21], "*", [17,21]),
-    makeThreeChain("DST_H017", "hard", [4,21], "+", [10,21], "*", [7,13], "/", [11,20]),
-    makeThreeChain("DST_H018", "hard", [22,25], "-", [3,14], "/", [17,25], "-", [3,10]),
-    makeThreeChain("DST_H019", "hard", [11,12], "-", [16,21], "*", [4,21], "/", [1,24]),
-    makeThreeChain("DST_H020", "hard", [9,11], "-", [17,22], "*", [17,25], "/", [1,14]),
-
-    makeThreeChain("DST_H021", "hard", [1,21], "+", [3,13], "/", [1,14], "*", [7,18]),
-    makeThreeChain("DST_H022", "hard", [7,11], "+", [18,25], "/", [21,25], "-", [16,21]),
-    makeThreeChain("DST_H023", "hard", [7,20], "-", [1,12], "/", [7,18], "+", [7,8]),
-    makeThreeChain("DST_H024", "hard", [2,9], "-", [2,11], "*", [1,14], "+", [7,11]),
-    makeThreeChain("DST_H025", "hard", [11,13], "+", [11,15], "*", [5,8], "-", [9,16])
-  ];
-}
+  function generateDSTHardBank() {
+    return [
+      makeThreeChain("DST_H001", "hard", [1,12], "-", [1,18], "/", [11,16], "+", [9,22]),
+    makeThreeChain("DST_H002", "hard", [20,21], "-", [3,14], "*", [17,20], "+", [7,15]),
+    makeThreeChain("DST_H003", "hard", [7,18], "+", [5,12], "/", [13,22], "-", [13,14]),
+    makeThreeChain("DST_H004", "hard", [1,12], "+", [1,14], "*", [6,11], "/", [5,12]),
+    makeThreeChain("DST_H005", "hard", [3,14], "+", [11,14], "*", [7,20], "-", [5,18]),
+    makeThreeChain("DST_H006", "hard", [17,24], "-", [5,14], "/", [5,18], "-", [13,24]),
+    makeThreeChain("DST_H007", "hard", [11,24], "+", [5,24], "*", [13,16], "-", [5,22]),
+    makeThreeChain("DST_H008", "hard", [17,24], "-", [2,11], "*", [4,15], "/", [9,22]),
+    makeThreeChain("DST_H009", "hard", [21,22], "-", [13,15], "/", [1,21], "-", [8,15]),
+    makeThreeChain("DST_H010", "hard", [1,20], "+", [5,21], "/", [3,28], "-", [7,20]),
+    makeThreeChain("DST_H011", "hard", [15,28], "+", [20,21], "*", [22,25], "-", [11,27]),
+    makeThreeChain("DST_H012", "hard", [13,20], "+", [13,16], "/", [13,15], "-", [2,15]),
+    makeThreeChain("DST_H013", "hard", [1,12], "-", [1,27], "*", [3,14], "+", [1,28]),
+    makeThreeChain("DST_H014", "hard", [19,24], "-", [1,16], "/", [13,20], "+", [8,13]),
+    makeThreeChain("DST_H015", "hard", [14,15], "-", [1,12], "/", [11,18], "-", [1,12]),
+    makeThreeChain("DST_H016", "hard", [21,22], "+", [11,27], "/", [25,27], "*", [11,18]),
+    makeThreeChain("DST_H017", "hard", [11,20], "+", [23,28], "*", [7,18], "/", [21,22]),
+    makeThreeChain("DST_H018", "hard", [13,27], "-", [1,22], "/", [8,27], "-", [19,20]),
+    makeThreeChain("DST_H019", "hard", [8,11], "-", [7,12], "*", [11,15], "/", [11,12]),
+    makeThreeChain("DST_H020", "hard", [5,14], "-", [4,21], "*", [14,15], "/", [19,25]),
+    makeThreeChain("DST_H021", "hard", [1,12], "+", [11,24], "/", [7,25], "*", [1,15]),
+    makeThreeChain("DST_H022", "hard", [9,16], "+", [1,28], "/", [8,15], "-", [23,28]),
+    makeThreeChain("DST_H023", "hard", [15,22], "-", [9,14], "/", [6,11], "+", [19,25]),
+    makeThreeChain("DST_H024", "hard", [17,22], "-", [11,28], "*", [11,27], "+", [13,22]),
+    makeThreeChain("DST_H025", "hard", [13,14], "+", [11,14], "*", [4,15], "-", [5,24])
+    ];
+  }
 
   function checkProblemBank(bank) {
     for (const p of bank) {
@@ -872,7 +901,7 @@ function generateDSTHardBank() {
   }
 
   // ============================================================
-  // SIMPLE WHOLE-NUMBER CALCULATOR
+  // NOTEPAD + WHOLE-NUMBER CALCULATOR
   // ============================================================
   function safeCalculatorEval(expr) {
     const cleaned = String(expr || "")
@@ -905,22 +934,52 @@ function generateDSTHardBank() {
     return { ok: true, result };
   }
 
-  function showCalculatorPanel() {
-    let panel = document.getElementById("calculatorPanel");
+  function recordCalculatorEntry(action, expressionRaw, outcome = {}) {
+    const context = state.currentCalculatorContext || {};
+    const entry = {
+      timestampISO: new Date().toISOString(),
+      action,
+      phaseName: context.phaseName || state.phase || "",
+      trialNumber: context.trialNumber ?? "",
+      problemId: context.problemId || "",
+      expressionRaw: String(expressionRaw || ""),
+      ok: outcome.ok === true ? 1 : outcome.ok === false ? 0 : "",
+      result: outcome.ok ? String(outcome.result) : "",
+      error: outcome.ok === false ? String(outcome.error || "") : ""
+    };
+    state.currentCalculatorEntries.push(entry);
+    state.calculatorHistory.push(entry);
+    logEvent("calculator_action", {
+      calculatorAction: entry.action,
+      calculatorPhaseName: entry.phaseName,
+      calculatorTrialNumber: entry.trialNumber,
+      problemId: entry.problemId,
+      calculatorExpressionRaw: entry.expressionRaw,
+      calculatorOK: entry.ok,
+      calculatorResult: entry.result,
+      calculatorError: entry.error
+    });
+  }
+
+  function showNotepadPanel(context = {}) {
+    let panel = document.getElementById("notepadPanel");
     if (!panel) {
       panel = document.createElement("div");
-      panel.id = "calculatorPanel";
-      panel.className = "calculator-panel-fixed";
+      panel.id = "notepadPanel";
+      panel.className = "notepad-panel-fixed";
       document.body.appendChild(panel);
     }
 
+    state.currentCalculatorContext = context || {};
+    state.currentCalculatorEntries = [];
+
     panel.innerHTML = `
       <div><b>Notepad</b></div>
-      <div class="small muted">Use this space for rough work.</div>
+      <div class="small muted">Use this space for rough work. Your notes are saved with this problem.</div>
       <textarea id="roughNotepad" class="notepad" placeholder="Write rough work here..."></textarea>
       <div class="hr"></div>
       <div><b>Calculator</b></div>
-      <div class="small muted">Whole-number scratch calculations only.</div>
+      <div class="small muted">Whole-number scratch calculations only. Calculator entries are saved with this problem.</div>
       <input id="calcInput" class="input calc-input" autocomplete="off" placeholder="e.g., 7+4" />
       <div class="calc-grid">
         <button type="button" class="calc-key" data-calc-key="7">7</button>
@@ -944,8 +1003,8 @@ function generateDSTHardBank() {
       <div id="calcResult" class="calc-result"></div>
     `;
 
-    const note = $("roughNotepad");
     state.notepadText = "";
+    const note = $("roughNotepad");
     note.value = "";
     note.addEventListener("input", () => { state.notepadText = note.value; });
     attachCalculatorHandlers();
@@ -959,7 +1018,9 @@ function generateDSTHardBank() {
     if (!calcInput || !calcResult || !calcBtn || !calcClear) return;
 
     function calculate() {
-      const out = safeCalculatorEval(calcInput.value);
+      const raw = calcInput.value;
+      const out = safeCalculatorEval(raw);
+      recordCalculatorEntry("calculate", raw, out);
       if (!out.ok) {
         calcResult.innerHTML = `<span class="bad">${escapeHTML(out.error)}</span>`;
         return;
@@ -969,17 +1030,18 @@ function generateDSTHardBank() {
 
     calcBtn.onclick = calculate;
     calcClear.onclick = () => {
+      if (calcInput.value !== "") recordCalculatorEntry("clear", calcInput.value);
       calcInput.value = "";
       calcResult.textContent = "";
       calcInput.focus();
     };
     calcInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    e.stopPropagation();
-    calculate();
-  }
-});
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        calculate();
+      }
+    });
 
     document.querySelectorAll("[data-calc-key]").forEach(btn => {
       btn.onclick = () => {
@@ -989,9 +1051,33 @@ function generateDSTHardBank() {
     });
   }
 
-  function hideCalculatorPanel() {
-    const panel = document.getElementById("calculatorPanel");
+  function captureNotepadSnapshot(phaseName, trialNumber, problemId) {
+    const note = $("roughNotepad");
+    const text = note ? note.value : (state.notepadText || "");
+    state.notepadText = text;
+    state.notepadHistory.push({
+      phaseName,
+      trialNumber,
+      problemId,
+      timestampISO: new Date().toISOString(),
+      text
+    });
+    return text;
+  }
+
+  function captureCalculatorSnapshot() {
+    const calcInput = $("calcInput");
+    return {
+      calculatorInputAtEnd: calcInput ? calcInput.value : "",
+      calculatorEntriesJSON: JSON.stringify(state.currentCalculatorEntries || [])
+    };
+  }
+
+  function hideNotepadPanel() {
+    const panel = document.getElementById("notepadPanel");
     if (panel) panel.remove();
+    state.currentCalculatorContext = null;
+    state.currentCalculatorEntries = [];
   }
 
   // ============================================================
@@ -1014,9 +1100,9 @@ function generateDSTHardBank() {
         <div class="hr"></div>
         <div><b>Information and procedures</b></div>
         <div class="small">
-          You are invited to participate in a 15-minute online research study about fraction problem solving. After consenting, you will review fraction instructions. During the first five minutes, you will be assigned to one of three fraction-learning activities. During the final ten minutes, everyone will continue solving fraction problems. During this final stage only, you may submit an answer or select <b>Reveal answer and continue</b> to stop working on that problem and move on.
+          You are invited to participate in an online research study about fraction problem solving. After consenting, you will review fraction instructions. The timed portion begins with at least 10 minutes of practice and a minimum of four practice problems. You will then complete 10 problems in the main task. During the main task only, you may submit an answer or select <b>Reveal answer and continue</b> to stop working on that problem and move on.
           <br><br>
-          The study is strictly timed. When 15 minutes have elapsed after you consent, the task will end automatically, your responses will be saved, and you will be redirected to Prolific.
+          The timed portion has a maximum duration of 35 minutes. If 35 minutes elapse before you finish, the task will end, your responses will be saved, and you will be redirected to Prolific.
         </div>
         <div class="hr"></div>
         <div><b>Risks and benefits</b></div>
@@ -1069,7 +1155,7 @@ function generateDSTHardBank() {
     state.phase = "end_no_consent";
     setHeader("Finished");
     setFooter("", "");
-    hideCalculatorPanel();
+    hideNotepadPanel();
 
     render(html(`
       <div class="notice">
@@ -1093,7 +1179,7 @@ async function fractionInstructionsScreen() {
     solve_practice: `
       <div><b>Your first activity</b></div>
       <div class="small">
-        For the first five minutes, you will solve fraction problems.
+        During practice, you will solve fraction problems for at least 10 minutes and complete at least four problems.
         For each problem, calculate the answer and submit your response.
       </div>
     `,
@@ -1101,16 +1187,16 @@ async function fractionInstructionsScreen() {
     answer_exposure: `
       <div><b>Your first activity</b></div>
       <div class="small">
-        For the first five minutes, you will solve fraction problems.
-        For each problem, calculate the answer and submit your response.
+        During practice, you will work with fraction problems for at least 10 minutes and complete at least four problems.
+        Follow the instructions shown for each problem.
       </div>
     `,
 
     guided_table: `
       <div><b>Your first activity</b></div>
       <div class="small">
-        For the first five minutes, you will solve fraction problems.
-        For each problem, calculate the answer and submit your response.
+        During practice, you will solve fraction problems for at least 10 minutes and complete at least four problems.
+        For the first few problems, you will solve each intermediate calculation in sequence. After that, you will solve the full problem yourself, but you may reveal intermediate-answer hints if needed.
       </div>
     `
   }[state.practiceCondition];
@@ -1283,22 +1369,7 @@ async function fractionInstructionsScreen() {
       </div>
     </div>
   </div>
-`,
-
-    // PAGE 6
-    `
-      <div class="notice">
-        ${conditionText}
-      </div>
-
-      <div class="notice">
-        <div><b>You are now ready to begin.</b></div>
-        <div class="small">
-          Remember that the first activity lasts for five minutes.
-          After that, you will automatically move on to the main task.
-        </div>
-      </div>
-    `
+`
   ];
 
 
@@ -1373,12 +1444,12 @@ async function fractionInstructionsScreen() {
   async function dstInstructionsScreen() {
     state.phase = "main_instructions";
     setHeader("Main Task");
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Final 10 minutes");
+
     logEvent("main_instructions_screen");
     render(html(`
       <div class="notice">
         <div><b>The practice period is complete.</b></div>
-        <div class="small">Continue working through fraction problems until the 15-minute study ends. Try to solve each problem, but you are free to give up at any time by pressing <b>Reveal answer and continue</b>.</div>
+        <div class="small">You will now complete 10 fraction problems. Try to solve each problem, but you are free to give up at any time by pressing <b>Reveal answer and continue</b>. The entire timed portion will end if the 35-minute maximum is reached.</div>
       </div>
       <div class="row"><button id="btnStartDST" class="btn">Continue</button></div>
     `));
@@ -1394,7 +1465,7 @@ async function fractionInstructionsScreen() {
 
   async function collectFractionAnswer({ problem, phaseLabel, progressLabel, allowReveal = false }) {
     if (!studyTimeRemaining()) return { action: "timeout" };
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), allowReveal ? "Submit or reveal answer" : "Submit an answer");
+    setFooter(allowReveal ? "Submit or reveal answer" : "Submit an answer");
 
     render(html(`
       <div class="row">
@@ -1415,7 +1486,7 @@ async function fractionInstructionsScreen() {
       </div>
     `));
 
-    showCalculatorPanel();
+    showNotepadPanel({ phaseName: phaseLabel, trialNumber: progressLabel, problemId: problem.id });
     const answerBox = $("answerBox");
     const answerErr = $("answerErr");
     const t0 = now();
@@ -1452,19 +1523,21 @@ async function fractionInstructionsScreen() {
     });
 
     const rtMs = Math.round(now() - t0);
+    const notepadText = captureNotepadSnapshot(phaseLabel, progressLabel, problem.id);
+    const calculatorSnapshot = captureCalculatorSnapshot();
     if (outcome.action !== "submitted") {
       logEvent(`${phaseLabel}_${outcome.action}`, { problemId: problem.id, responseRTms: rtMs });
-      return { ...outcome, rtMs };
+      return { ...outcome, rtMs, notepadText, ...calculatorSnapshot };
     }
 
     const correctFrac = frac(problem.correctNumerator, problem.correctDenominator);
     const correct = sameFrac(outcome.parsed.value, correctFrac) ? 1 : 0;
     logEvent(`${phaseLabel}_answer_submitted`, { problemId: problem.id, correct, responseRTms: rtMs });
-    return { ...outcome, correct, rtMs };
+    return { ...outcome, correct, rtMs, notepadText, ...calculatorSnapshot };
   }
 
   async function feedbackScreen({ problem, correct, responseText }) {
-    hideCalculatorPanel();
+    hideNotepadPanel();
     setHeader("Feedback");
     setFooter("", "");
 
@@ -1484,7 +1557,7 @@ async function fractionInstructionsScreen() {
   async function runAnswerExposureTrial(problem, practiceTrialNumber) {
     state.phase = "answer_exposure";
     setHeader(`Learning problem ${practiceTrialNumber}`);
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please wait while the answer is calculated");
+    setFooter("Please wait while the answer is calculated");
     const t0 = now();
     logEvent("answer_exposure_trial_start", { practiceTrialNumber, problemId: problem.id });
 
@@ -1512,7 +1585,7 @@ async function fractionInstructionsScreen() {
       </div>
       <div class="row"><button id="btnNextExposure" class="btn" disabled>Next problem</button></div>
     `));
-    showCalculatorPanel();
+    showNotepadPanel({ phaseName: "answer_exposure", trialNumber: practiceTrialNumber, problemId: problem.id });
 
     const action = await new Promise(resolve => {
       let done = false;
@@ -1536,7 +1609,7 @@ async function fractionInstructionsScreen() {
       };
 
       const checker = window.setInterval(() => {
-        if (!practiceTimeRemaining() || !studyTimeRemaining()) {
+        if (!studyTimeRemaining()) {
           finish({ action: "timeout", copiedAnswerRaw });
           return;
         }
@@ -1562,7 +1635,7 @@ async function fractionInstructionsScreen() {
               copyMessage.className = copiedCorrectly ? "small good" : "small muted";
             };
             copyBox.addEventListener("input", evaluateCopy);
-            setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Input the answer and think about what calculations got to this answer");
+            setFooter("Input the answer and think about what calculations got to this answer");
             logEvent("answer_exposure_answer_shown", {
               practiceTrialNumber,
               problemId: problem.id,
@@ -1573,18 +1646,20 @@ async function fractionInstructionsScreen() {
         }
 
         if (current < nextAt) {
-          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please think about what calculations got to this answer");
+          setFooter("Please think about what calculations got to this answer");
         } else if (!copiedCorrectly) {
-          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Input the answer correctly to continue");
+          setFooter("Input the answer correctly to continue");
         } else {
           $("btnNextExposure").disabled = false;
           $("reflectionStatus").innerHTML = '<span class="good"><b>Contemplation period complete.</b></span>';
-          setFooter("Time remaining: " + formatClock(remainingStudyMs()), "You may continue");
+          setFooter("You may continue");
         }
       }, 100);
     });
 
     const rtMs = Math.round(now() - t0);
+    const notepadText = captureNotepadSnapshot("answer_exposure", practiceTrialNumber, problem.id);
+    const calculatorSnapshot = captureCalculatorSnapshot();
     const actionName = typeof action === "string" ? action : action.action;
     const copiedAnswerRaw = typeof action === "object" ? (action.copiedAnswerRaw || "") : "";
     const copiedParsed = parseFractionInput(copiedAnswerRaw);
@@ -1596,7 +1671,10 @@ async function fractionInstructionsScreen() {
       action: actionName, attempted: 0, pressedRevealAnswer: 0, revealedAnswer: 1,
       copiedAnswerRaw, copiedAnswerRawExcel: excelText(copiedAnswerRaw), copiedAnswerCorrect: copiedCorrect,
       answerCorrect: copiedCorrect, correct: copiedCorrect,
-      answerRevealDelayMs: 10000, requiredReflectionMs: 10000,
+      answerRevealDelayMs: 10000, requiredReflectionMs: 15000,
+      notepadText,
+      calculatorInputAtEnd: calculatorSnapshot.calculatorInputAtEnd,
+      calculatorEntriesJSON: calculatorSnapshot.calculatorEntriesJSON,
       questionTimeMs: rtMs, questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
     });
     logEvent("answer_exposure_trial_end", {
@@ -1606,154 +1684,217 @@ async function fractionInstructionsScreen() {
     return actionName !== "timeout";
   }
 
-  function guidedStepSequence(problem) {
-  const sequence = [];
-
-  for (const op of problem.operationSequence) {
-    if (op === "+" || op === "-") {
-      sequence.push("Find a common denominator and rewrite the fractions");
-      sequence.push(op === "+" ? "Add the fractions" : "Subtract the fractions");
-    }
-
-    if (op === "*") {
-      sequence.push("Multiply the numerators");
-      sequence.push("Multiply the denominators");
-    }
-
-    if (op === "/") {
-      sequence.push("Flip the second fraction and change division to multiplication");
-      sequence.push("Multiply the numerators");
-      sequence.push("Multiply the denominators");
-    }
-
-    sequence.push("Simplify the result");
-  }
-
-  sequence.push("Enter the final answer");
-
-  return sequence;
-}
-  function makeStepCard(label, index) {
-    return `<div class="step-card" draggable="true" data-step-id="step-${index}" data-label="${escapeHTML(label)}">${escapeHTML(label)}</div>`;
-  }
-
-  function attachStepDragHandlers() {
-    let dragged = null;
-    document.querySelectorAll(".step-card").forEach(card => {
-      card.addEventListener("dragstart", e => {
-        dragged = card;
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", card.dataset.stepId || "");
-      });
-      card.addEventListener("click", () => {
-        const empty = Array.from(document.querySelectorAll(".step-slot")).find(slot => !slot.querySelector(".step-card"));
-        if (empty && card.parentElement?.id === "stepBank") empty.appendChild(card);
-      });
-    });
-
-    document.querySelectorAll(".step-slot, .step-bank").forEach(target => {
-      target.addEventListener("dragover", e => { e.preventDefault(); target.classList.add("drag-over"); });
-      target.addEventListener("dragleave", () => target.classList.remove("drag-over"));
-      target.addEventListener("drop", e => {
-        e.preventDefault();
-        target.classList.remove("drag-over");
-        if (!dragged) return;
-        if (target.classList.contains("step-slot")) {
-          const existing = target.querySelector(".step-card");
-          if (existing && existing !== dragged) {
-            const origin = dragged.parentElement;
-            origin.appendChild(existing);
-          }
-          target.appendChild(dragged);
-        } else {
-          target.appendChild(dragged);
-        }
-      });
-    });
+  function guidedStepPromptHTML(step, stepIndex) {
+    if (stepIndex === 0) return step.expressionHTML;
+    return `<span id="guidedPrev${stepIndex}">[your Step ${stepIndex} answer]</span> ${opHTML(step.op)} ${step.rightHTML}`;
   }
 
   async function runGuidedTableTrial(problem, practiceTrialNumber) {
     state.phase = "guided_table";
-    const labelsPrefilled = practiceTrialNumber <= 3;
-    const correctSequence = guidedStepSequence(problem);
+    const scaffolded = practiceTrialNumber <= CONFIG.guidedScaffoldTrials;
+    const steps = problem.intermediateSteps || [];
     setHeader(`Guided problem ${practiceTrialNumber}`);
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), labelsPrefilled ? "Steps shown in a suggested order" : "Use whichever steps are helpful");
-    logEvent("guided_table_trial_start", { practiceTrialNumber, problemId: problem.id, labelsPrefilled, correctSequenceJSON: JSON.stringify(correctSequence) });
+    setFooter(  
+      scaffolded ? "Solve each intermediate calculation" : "Solve independently; hints are available"
+    );
+    logEvent("guided_intermediate_trial_start", {
+      practiceTrialNumber,
+      problemId: problem.id,
+      scaffolded: scaffolded ? 1 : 0,
+      intermediateStepsJSON: JSON.stringify(steps.map(x => ({
+        stepNumber: x.stepNumber,
+        expressionText: x.expressionText,
+        correctText: x.correctText
+      })))
+    });
 
-    const rows = correctSequence.map((_, i) => `
-      <tr>
-        <td><div id="stepSlot${i}" class="step-slot">${labelsPrefilled ? makeStepCard(correctSequence[i], i) : ""}</div></td>
-        <td><input id="stepWork${i}" class="scaffold-input" autocomplete="off" placeholder="Write your intermediate answer" /></td>
-      </tr>`).join("");
+    if (scaffolded) {
+      const rows = steps.map((step, i) => `
+        <div class="notice" style="margin-bottom:10px">
+          <div><b>${i + 1}. ${guidedStepPromptHTML(step, i)}</b></div>
+          <input id="guidedStepAnswer${i}" class="input" autocomplete="off" placeholder="Write answer" style="margin-top:10px" />
+          <div id="guidedStepErr${i}" class="small bad" style="display:none;margin-top:6px"></div>
+        </div>
+      `).join("");
 
-    const shuffledCards = shuffledCopy(correctSequence.map((label, i) => ({ label, i })))
-      .map(x => makeStepCard(x.label, x.i)).join("");
+      render(html(`
+        <div class="row"><div class="pill">Guided problem ${practiceTrialNumber}</div></div>
+        <div class="notice"><div class="small muted">Full problem</div><div class="math">${problem.expressionHTML}</div></div>
+        <div class="notice">
+          <div><b>Solve the problem one intermediate calculation at a time.</b></div>
+          <div class="small muted">Use each answer in the next line.</div>
+        </div>
+        ${rows}
+        <div class="row"><button id="btnSubmitGuided" class="btn">Submit answers</button></div>
+        <div id="guidedErr" class="small bad" style="display:none;margin-top:8px"></div>
+      `));
+      showNotepadPanel({ phaseName: "guided_scaffold", trialNumber: practiceTrialNumber, problemId: problem.id });
 
+      steps.forEach((_, i) => {
+        const input = $("guidedStepAnswer" + i);
+        restrictAnswerBox(input);
+        if (i < steps.length - 1) {
+          input.addEventListener("input", () => {
+            const next = $("guidedPrev" + (i + 1));
+            if (next) next.textContent = input.value.trim() || `[your Step ${i + 1} answer]`;
+          });
+        }
+      });
+      $("guidedStepAnswer0")?.focus();
+
+      const t0 = now();
+      const outcome = await new Promise(resolve => {
+        let done = false;
+        const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
+        $("btnSubmitGuided").onclick = () => {
+          const rawAnswers = steps.map((_, i) => $("guidedStepAnswer" + i)?.value || "");
+          const parsedAnswers = [];
+          let anyInvalid = false;
+          rawAnswers.forEach((raw, i) => {
+            const parsed = parseFractionInput(raw);
+            parsedAnswers.push(parsed);
+            const err = $("guidedStepErr" + i);
+            if (!parsed.ok) {
+              anyInvalid = true;
+              err.style.display = "block";
+              err.textContent = "Enter a whole number or fraction.";
+            } else {
+              err.style.display = "none";
+            }
+          });
+          if (anyInvalid) return;
+          finish({ action: "submitted", rawAnswers, parsedAnswers });
+        };
+        const checker = setInterval(() => { if (!studyTimeRemaining()) finish({ action: "timeout" }); }, 200);
+      });
+
+      const rtMs = Math.round(now() - t0);
+      const notepadText = captureNotepadSnapshot("guided_scaffold", practiceTrialNumber, problem.id);
+      const calculatorSnapshot = captureCalculatorSnapshot();
+      const rawAnswers = outcome.rawAnswers || steps.map((_, i) => $("guidedStepAnswer" + i)?.value || "");
+      const parsedAnswers = outcome.parsedAnswers || rawAnswers.map(parseFractionInput);
+      const stepCorrect = steps.map((step, i) => {
+        const parsed = parsedAnswers[i];
+        return parsed?.ok && sameFrac(parsed.value, frac(step.correctNumerator, step.correctDenominator)) ? 1 : 0;
+      });
+      const finalIndex = steps.length - 1;
+      const finalParsed = parsedAnswers[finalIndex];
+      const correct = outcome.action === "submitted" ? stepCorrect[finalIndex] : "";
+
+      state.practiceRows.push({
+        kind: "practice_trial", participantId: state.participantId, timestampISO: new Date().toISOString(),
+        practiceCondition: state.practiceCondition, practiceTrialNumber, problemId: problem.id, difficulty: problem.difficulty, steps: problem.steps,
+        expressionText: asciiMathText(problem.expressionText), correctTextRaw: problem.correctText, correctTextExcel: excelText(problem.correctText),
+        action: outcome.action, attempted: outcome.action === "submitted" ? 1 : 0, pressedRevealAnswer: 0, revealedAnswer: 0,
+        responseRaw: outcome.action === "submitted" ? rawAnswers[finalIndex].trim() : "",
+        responseNormalizedRaw: outcome.action === "submitted" ? finalParsed.normalized : "",
+        answerCorrect: correct, correct,
+        scaffoldedIntermediatePractice: 1, hintsUsed: 0,
+        intermediateResponsesJSON: JSON.stringify(rawAnswers),
+        intermediateNormalizedJSON: JSON.stringify(parsedAnswers.map(x => x?.ok ? x.normalized : "")),
+        intermediateCorrectJSON: JSON.stringify(stepCorrect),
+        intermediateCorrectAnswersJSON: JSON.stringify(steps.map(x => x.correctText)),
+        notepadText,
+        calculatorInputAtEnd: calculatorSnapshot.calculatorInputAtEnd,
+        calculatorEntriesJSON: calculatorSnapshot.calculatorEntriesJSON,
+        questionTimeMs: rtMs, questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
+      });
+
+      if (outcome.action === "timeout") return false;
+      await feedbackScreen({ problem, correct, responseText: finalParsed.normalized });
+      return true;
+    }
+
+    // After the first few guided items, participants solve independently.
+    // Hints reveal correct intermediate answers one at a time, never the final answer.
+    const hintSteps = steps.slice(0, Math.max(0, steps.length - 1));
     render(html(`
       <div class="row"><div class="pill">Guided problem ${practiceTrialNumber}</div></div>
       <div class="notice"><div class="small muted">Calculate:</div><div class="math">${problem.expressionHTML}</div></div>
-      ${labelsPrefilled ? "" : `<div class="notice"><div><b>Available steps</b></div><div class="small muted">Drag or click any steps you think are useful. You do not need to place a step in every row.</div><div id="stepBank" class="step-bank">${shuffledCards}</div></div>`}
       <div class="notice">
-        <table class="scaffold-table">
-          <thead><tr><th>Step order</th><th>Your intermediate answer</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="small"><b>Your final answer</b></div>
+        <input id="guidedFinalAnswer" class="input" autocomplete="off" placeholder="e.g., 3/4 or 2" />
+        <div id="guidedFinalErr" class="small bad" style="display:none;margin-top:8px"></div>
       </div>
+      <div id="guidedHints"></div>
       <div class="row">
-        ${labelsPrefilled ? "" : '<button id="btnHint" class="btn secondary">Place next correct step</button>'}
+        ${hintSteps.length ? '<button id="btnHint" class="btn secondary">Reveal an intermediate-answer hint</button>' : ''}
         <button id="btnSubmitGuided" class="btn">Submit final answer</button>
       </div>
-      <div id="guidedErr" class="small bad" style="display:none;margin-top:8px"></div>
     `));
-    showCalculatorPanel();
-    attachStepDragHandlers();
-    const t0 = now();
-    let hintsUsed = 0;
+    showNotepadPanel({ phaseName: "guided_independent", trialNumber: practiceTrialNumber, problemId: problem.id });
+    restrictAnswerBox($("guidedFinalAnswer"));
+    $("guidedFinalAnswer").focus();
 
-    if (!labelsPrefilled) {
+    let hintsUsed = 0;
+    const revealedHints = [];
+    if (hintSteps.length) {
       $("btnHint").onclick = () => {
-        const slots = Array.from(document.querySelectorAll(".step-slot"));
-        const nextIndex = slots.findIndex(slot => !slot.querySelector(".step-card"));
-        if (nextIndex < 0) return;
-        const needed = correctSequence[nextIndex];
-        const card = Array.from(document.querySelectorAll("#stepBank .step-card")).find(c => c.dataset.label === needed);
-        if (card) {
-          slots[nextIndex].appendChild(card);
-          hintsUsed += 1;
-          logEvent("guided_table_hint", { practiceTrialNumber, problemId: problem.id, stepIndex: nextIndex + 1, label: needed });
+        if (hintsUsed >= hintSteps.length) return;
+        const step = hintSteps[hintsUsed];
+        revealedHints.push({ stepNumber: step.stepNumber, expressionText: step.expressionText, correctText: step.correctText });
+        $("guidedHints").insertAdjacentHTML("beforeend", `
+          <div class="notice">
+            <div><b>Intermediate hint ${hintsUsed + 1}</b></div>
+            <div class="math" style="font-size:26px">${step.expressionHTML} = ${escapeHTML(step.correctText)}</div>
+          </div>
+        `);
+        hintsUsed += 1;
+        logEvent("guided_intermediate_hint", {
+          practiceTrialNumber,
+          problemId: problem.id,
+          hintNumber: hintsUsed,
+          stepNumber: step.stepNumber,
+          correctIntermediateAnswer: step.correctText
+        });
+        if (hintsUsed >= hintSteps.length) {
+          $("btnHint").disabled = true;
+          $("btnHint").textContent = "All intermediate hints revealed";
         }
       };
     }
 
+    const t0 = now();
     const outcome = await new Promise(resolve => {
       let done = false;
       const finish = value => { if (!done) { done = true; clearInterval(checker); resolve(value); } };
-      $("btnSubmitGuided").onclick = () => {
-        const arranged = Array.from(document.querySelectorAll(".step-slot")).map(slot => slot.querySelector(".step-card")?.dataset.label || "");
-        const raw = $("stepWork" + (correctSequence.length - 1)).value;
+      const submit = () => {
+        const raw = $("guidedFinalAnswer").value;
         const parsed = parseFractionInput(raw);
-        if (!parsed.ok) { $("guidedErr").style.display = "block"; $("guidedErr").textContent = "Enter your final answer in the last row before submitting."; return; }
-        finish({ action: "submitted", answerRaw: raw, parsed, arranged });
+        if (!parsed.ok) {
+          $("guidedFinalErr").style.display = "block";
+          $("guidedFinalErr").textContent = parsed.error;
+          return;
+        }
+        finish({ action: "submitted", answerRaw: raw, parsed });
       };
-      const checker = setInterval(() => { if (!practiceTimeRemaining() || !studyTimeRemaining()) finish({ action: "timeout" }); }, 200);
+      $("btnSubmitGuided").onclick = submit;
+      $("guidedFinalAnswer").addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+      const checker = setInterval(() => { if (!studyTimeRemaining()) finish({ action: "timeout" }); }, 200);
     });
 
     const rtMs = Math.round(now() - t0);
-    const arrangedLabels = Array.from(document.querySelectorAll(".step-slot")).map(slot => slot.querySelector(".step-card")?.dataset.label || "");
-    const work = correctSequence.map((_, i) => $("stepWork" + i)?.value || "");
+    const notepadText = captureNotepadSnapshot("guided_independent", practiceTrialNumber, problem.id);
+    const calculatorSnapshot = captureCalculatorSnapshot();
     let correct = "";
-    if (outcome.action === "submitted") correct = sameFrac(outcome.parsed.value, frac(problem.correctNumerator, problem.correctDenominator)) ? 1 : 0;
-    const orderCorrect = outcome.action === "submitted" && JSON.stringify(arrangedLabels) === JSON.stringify(correctSequence) ? 1 : 0;
+    if (outcome.action === "submitted") {
+      correct = sameFrac(outcome.parsed.value, frac(problem.correctNumerator, problem.correctDenominator)) ? 1 : 0;
+    }
 
     state.practiceRows.push({
       kind: "practice_trial", participantId: state.participantId, timestampISO: new Date().toISOString(),
       practiceCondition: state.practiceCondition, practiceTrialNumber, problemId: problem.id, difficulty: problem.difficulty, steps: problem.steps,
       expressionText: asciiMathText(problem.expressionText), correctTextRaw: problem.correctText, correctTextExcel: excelText(problem.correctText),
-      action: outcome.action, attempted: outcome.action === "submitted" ? 1 : 0, pressedRevealAnswer: 0,
+      action: outcome.action, attempted: outcome.action === "submitted" ? 1 : 0, pressedRevealAnswer: 0, revealedAnswer: 0,
       responseRaw: outcome.action === "submitted" ? outcome.answerRaw.trim() : "",
       responseNormalizedRaw: outcome.action === "submitted" ? outcome.parsed.normalized : "",
-      answerCorrect: correct, correct, stepOrderCorrect: orderCorrect, hintsUsed, labelsPrefilled: labelsPrefilled ? 1 : 0,
-      correctStepSequenceJSON: JSON.stringify(correctSequence), scaffoldLabelsJSON: JSON.stringify(arrangedLabels), scaffoldWorkJSON: JSON.stringify(work),
+      answerCorrect: correct, correct,
+      scaffoldedIntermediatePractice: 0, hintsUsed,
+      revealedIntermediateHintsJSON: JSON.stringify(revealedHints),
+      intermediateCorrectAnswersJSON: JSON.stringify(hintSteps.map(x => x.correctText)),
+      notepadText,
+      calculatorInputAtEnd: calculatorSnapshot.calculatorInputAtEnd,
+      calculatorEntriesJSON: calculatorSnapshot.calculatorEntriesJSON,
       questionTimeMs: rtMs, questionTimeSeconds: Number((rtMs / 1000).toFixed(3)), responseRTms: rtMs, elapsedStudyMs: elapsedStudyMs()
     });
 
@@ -1798,6 +1939,9 @@ async function fractionInstructionsScreen() {
       questionTimeMs: result.rtMs,
       questionTimeSeconds: Number((result.rtMs / 1000).toFixed(3)),
       responseRTms: result.rtMs,
+      notepadText: result.notepadText || "",
+      calculatorInputAtEnd: result.calculatorInputAtEnd || "",
+      calculatorEntriesJSON: result.calculatorEntriesJSON || "[]",
       elapsedStudyMs: elapsedStudyMs()
     };
     state.practiceRows.push(row);
@@ -1811,24 +1955,34 @@ async function fractionInstructionsScreen() {
     const practice = generatePracticeBank();
     checkProblemBank(practice);
     state.selectedPracticeProblems = practice;
-    logEvent("practice_block_start", { practiceCondition: state.practiceCondition, targetDurationMs: CONFIG.practicePhaseMs, problemIds: practice.map(p => p.id).join(";") });
+    logEvent("practice_block_start", {
+      practiceCondition: state.practiceCondition,
+      targetDurationMs: CONFIG.practicePhaseMs,
+      minimumPracticeProblems: CONFIG.minimumPracticeProblems,
+      problemIds: practice.map(p => p.id).join(";")
+    });
 
     let trial = 0;
-    while (practiceTimeRemaining() && studyTimeRemaining()) {
+    let queue = [];
+    while (shouldContinuePracticeBlock()) {
+      if (queue.length === 0) queue = shuffledCopy(practice);
+      const problem = queue.shift();
       trial += 1;
-      const cycle = shuffledCopy(practice);
-      for (const problem of cycle) {
-        if (!practiceTimeRemaining() || !studyTimeRemaining()) break;
-        let completed;
-        if (state.practiceCondition === "answer_exposure") completed = await runAnswerExposureTrial(problem, trial);
-        else if (state.practiceCondition === "guided_table") completed = await runGuidedTableTrial(problem, trial);
-        else completed = await runPracticeTrial(problem, trial);
-        if (!completed) break;
-        trial += 1;
-      }
-      trial -= 1;
+
+      let completed;
+      if (state.practiceCondition === "answer_exposure") completed = await runAnswerExposureTrial(problem, trial);
+      else if (state.practiceCondition === "guided_table") completed = await runGuidedTableTrial(problem, trial);
+      else completed = await runPracticeTrial(problem, trial);
+
+      if (!completed || !studyTimeRemaining()) break;
     }
-    logEvent("practice_block_end", { nPracticeTrials: state.practiceRows.length, elapsedStudyMs: elapsedStudyMs() });
+
+    logEvent("practice_block_end", {
+      nPracticeTrials: state.practiceRows.length,
+      minimumPracticeProblems: CONFIG.minimumPracticeProblems,
+      practiceElapsedMs: state.taskStartedAtMs == null ? "" : Date.now() - state.taskStartedAtMs,
+      elapsedStudyMs: elapsedStudyMs()
+    });
   }
 
 
@@ -1836,9 +1990,9 @@ async function fractionInstructionsScreen() {
     if (!studyTimeRemaining()) return false;
 
     state.phase = "practice_ratings";
-    hideCalculatorPanel();
+    hideNotepadPanel();
     setHeader("Your Experience");
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "Please answer both questions");
+    setFooter("Please answer all four questions");
     logEvent("practice_ratings_screen");
 
     const scaleHTML = (name) => `
@@ -1862,7 +2016,15 @@ async function fractionInstructionsScreen() {
         <div><b>Did you feel you were able to be successful in answering the fraction problems?</b></div>
         ${scaleHTML("practiceSuccess")}
       </div>
-      <div id="ratingsErr" class="small bad" style="display:none;margin-top:8px">Please answer both questions.</div>
+      <div class="notice">
+        <div><b>How rewarding did you find the practice to be?</b></div>
+        ${scaleHTML("practiceRewarding")}
+      </div>
+      <div class="notice">
+        <div><b>The practice helped me learn how to solve fractions.</b></div>
+        ${scaleHTML("practiceLearning")}
+      </div>
+      <div id="ratingsErr" class="small bad" style="display:none;margin-top:8px">Please answer all four questions.</div>
       <div class="row"><button id="btnSubmitRatings" class="btn">Continue</button></div>
     `));
 
@@ -1879,11 +2041,19 @@ async function fractionInstructionsScreen() {
       $("btnSubmitRatings").onclick = () => {
         const difficulty = document.querySelector('input[name="practiceDifficulty"]:checked')?.value;
         const success = document.querySelector('input[name="practiceSuccess"]:checked')?.value;
-        if (!difficulty || !success) {
+        const rewarding = document.querySelector('input[name="practiceRewarding"]:checked')?.value;
+        const learning = document.querySelector('input[name="practiceLearning"]:checked')?.value;
+        if (!difficulty || !success || !rewarding || !learning) {
           $("ratingsErr").style.display = "block";
           return;
         }
-        finish({ action: "submitted", difficulty: Number(difficulty), success: Number(success) });
+        finish({
+          action: "submitted",
+          difficulty: Number(difficulty),
+          success: Number(success),
+          rewarding: Number(rewarding),
+          learning: Number(learning)
+        });
       };
 
       const checker = setInterval(() => {
@@ -1901,6 +2071,8 @@ async function fractionInstructionsScreen() {
       action: result.action,
       practiceDifficulty: result.action === "submitted" ? result.difficulty : "",
       practiceSuccess: result.action === "submitted" ? result.success : "",
+      practiceRewarding: result.action === "submitted" ? result.rewarding : "",
+      practiceLearning: result.action === "submitted" ? result.learning : "",
       ratingsRTms: rtMs,
       ratingsTimeSeconds: Number((rtMs / 1000).toFixed(3)),
       elapsedStudyMs: elapsedStudyMs()
@@ -1910,11 +2082,14 @@ async function fractionInstructionsScreen() {
       action: result.action,
       practiceDifficulty: state.practiceRatings.practiceDifficulty,
       practiceSuccess: state.practiceRatings.practiceSuccess,
+      practiceRewarding: state.practiceRatings.practiceRewarding,
+      practiceLearning: state.practiceRatings.practiceLearning,
       ratingsRTms: rtMs
     });
 
     return result.action === "submitted";
   }
+
 
   async function runMainTrial(problem, trialNumber) {
     state.phase = "main_task";
@@ -1951,6 +2126,9 @@ async function fractionInstructionsScreen() {
       questionTimeMs: result.rtMs,
       questionTimeSeconds: Number((result.rtMs / 1000).toFixed(3)),
       responseRTms: result.rtMs,
+      notepadText: result.notepadText || "",
+      calculatorInputAtEnd: result.calculatorInputAtEnd || "",
+      calculatorEntriesJSON: result.calculatorEntriesJSON || "[]",
       elapsedStudyMs: elapsedStudyMs()
     });
 
@@ -1961,9 +2139,9 @@ async function fractionInstructionsScreen() {
   }
 
   async function showGivenAnswerScreen(problem, trialNumber, phaseName) {
-    hideCalculatorPanel();
+    hideNotepadPanel();
     setHeader(`${phaseName}: answer revealed`);
-    setFooter("Time remaining: " + formatClock(remainingStudyMs()), "");
+    setFooter("");
     render(html(`
       <div class="notice">
         <div><b>Correct answer</b></div>
@@ -1980,21 +2158,26 @@ async function fractionInstructionsScreen() {
   async function runDSTBlock() {
     const hardBank = generateDSTHardBank();
     checkProblemBank(hardBank);
-    state.selectedDSTProblems = hardBank;
-    logEvent("main_block_start", { bankSize: hardBank.length, problemIds: hardBank.map(p => p.id).join(";") });
+    state.selectedDSTProblems = shuffledCopy(hardBank).slice(0, CONFIG.mainTaskTrials);
+    logEvent("main_block_start", {
+      bankSize: hardBank.length,
+      targetTrials: CONFIG.mainTaskTrials,
+      problemIds: state.selectedDSTProblems.map(p => p.id).join(";")
+    });
 
-    let trial = 0;
-    while (studyTimeRemaining()) {
-      const cycle = shuffledCopy(hardBank);
-      for (const problem of cycle) {
-        if (!studyTimeRemaining()) break;
-        trial += 1;
-        const completed = await runMainTrial(problem, trial);
-        if (!completed) break;
-      }
+    for (let i = 0; i < state.selectedDSTProblems.length; i++) {
+      if (!studyTimeRemaining()) break;
+      const completed = await runMainTrial(state.selectedDSTProblems[i], i + 1);
+      if (!completed) break;
     }
-    logEvent("main_block_end", { nMainTrials: state.dstPerformanceRows.length, elapsedStudyMs: elapsedStudyMs() });
+
+    logEvent("main_block_end", {
+      nMainTrials: state.dstPerformanceRows.length,
+      targetTrials: CONFIG.mainTaskTrials,
+      elapsedStudyMs: elapsedStudyMs()
+    });
   }
+
 
   // ============================================================
   // CSV + DATAPIPE
@@ -2009,10 +2192,14 @@ async function fractionInstructionsScreen() {
       exportedAtISO: new Date().toISOString(),
       plannedDurationMs: CONFIG.totalStudyMs,
       plannedPracticeDurationMs: CONFIG.practicePhaseMs,
+      minimumPracticeProblems: CONFIG.minimumPracticeProblems,
+      plannedMainTrials: CONFIG.mainTaskTrials,
       elapsedStudyMs: elapsedStudyMs(),
       nPracticeTrials: state.practiceRows.length,
       nDSTTrials: state.dstPerformanceRows.length,
       notepadText: state.notepadText,
+      notepadHistoryJSON: JSON.stringify(state.notepadHistory),
+      calculatorHistoryJSON: JSON.stringify(state.calculatorHistory),
       practiceConditionNumber: state.practiceConditionNumber,
       practiceCondition: state.practiceCondition,
       practiceConditionSource: state.practiceConditionSource,
@@ -2049,14 +2236,22 @@ async function fractionInstructionsScreen() {
       "type",
       "plannedDurationMs",
       "plannedPracticeDurationMs",
+      "minimumPracticeProblems",
+      "plannedMainTrials",
       "elapsedStudyMs",
       "notepadText",
+      "notepadHistoryJSON",
+      "calculatorInputAtEnd",
+      "calculatorEntriesJSON",
+      "calculatorHistoryJSON",
       "practiceConditionNumber",
       "practiceCondition",
       "practiceConditionSource",
       "practiceConditionError",
       "practiceDifficulty",
       "practiceSuccess",
+      "practiceRewarding",
+      "practiceLearning",
       "ratingsRTms",
       "ratingsTimeSeconds",
       "nPracticeTrials",
@@ -2093,11 +2288,12 @@ async function fractionInstructionsScreen() {
       "questionTimeSeconds",
       "responseRTms",
       "hintsUsed",
-      "labelsPrefilled",
-      "stepOrderCorrect",
-      "correctStepSequenceJSON",
-      "scaffoldLabelsJSON",
-      "scaffoldWorkJSON"
+      "scaffoldedIntermediatePractice",
+      "intermediateResponsesJSON",
+      "intermediateNormalizedJSON",
+      "intermediateCorrectJSON",
+      "intermediateCorrectAnswersJSON",
+      "revealedIntermediateHintsJSON"
     ];
 
     const headers = [
@@ -2159,7 +2355,7 @@ async function fractionInstructionsScreen() {
     state.saving = true;
     state.ended = true;
     if (state.timeoutHandle) window.clearTimeout(state.timeoutHandle);
-    hideCalculatorPanel();
+    hideNotepadPanel();
     state.phase = "end";
     setHeader(timedOut ? "Time is up" : "Finished");
     setFooter("", "");
@@ -2169,7 +2365,7 @@ async function fractionInstructionsScreen() {
 
     render(html(`
       <div class="notice">
-        <div><b>${timedOut ? "The 15-minute study has ended." : "Study complete."}</b></div>
+        <div><b>${timedOut ? "The maximum timed period has ended." : "Study complete."}</b></div>
         <div class="small">Saving your data…</div>
         <div class="small">Please do not close this window.</div>
       </div>
@@ -2241,22 +2437,36 @@ async function fractionInstructionsScreen() {
     }
 
     assignPracticeCondition();
-    startTimedStudy();
     await fractionInstructionsScreen();
-    if (!studyTimeRemaining()) return;
+
+    // The 35-minute maximum begins with practice, not with consent/instructions.
+    startTimedStudy();
     await runPracticeBlock();
-    if (!studyTimeRemaining()) return;
+    if (!studyTimeRemaining()) {
+      await endScreen({ timedOut: true });
+      return;
+    }
+
     const ratingsCompleted = await practiceRatingsScreen();
-    if (!ratingsCompleted || !studyTimeRemaining()) return;
+    if (!ratingsCompleted || !studyTimeRemaining()) {
+      await endScreen({ timedOut: true });
+      return;
+    }
+
     await dstInstructionsScreen();
-    if (!studyTimeRemaining()) return;
+    if (!studyTimeRemaining()) {
+      await endScreen({ timedOut: true });
+      return;
+    }
+
     await runDSTBlock();
-    if (!state.ended) await endScreen({ timedOut: true });
+    if (!state.ended) await endScreen({ timedOut: !studyTimeRemaining() });
   }
+
 
   boot().catch(e => {
     console.error(e);
-    hideCalculatorPanel();
+    hideNotepadPanel();
     render(html(`
       <div class="notice">
         <div class="bad"><b>Unexpected error</b></div>
