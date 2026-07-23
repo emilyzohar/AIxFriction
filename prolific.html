@@ -569,12 +569,7 @@
     return state.taskDeadlineMs != null && Date.now() < state.taskDeadlineMs && !state.ended;
   }
 
-  function formatClock(ms) {
-    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
-  }
+  // Timing is enforced in the background only. No participant-facing countdown is rendered.
 
   function logEvent(type, payload = {}) {
     state._eventIndex += 1;
