@@ -2245,7 +2245,6 @@ async function fractionInstructionsScreen() {
       <div class="notice"><div><b>I found this type of task meaningful.</b></div>${scaleHTML("practiceMeaningful")}</div>
       <div class="notice"><div><b>I feel confident doing similar tasks in the future without being provided with a solved response.</b></div>${scaleHTML("practiceFutureConfidence")}</div>
       <div class="notice"><div><b>I am certain I can successfully complete tasks like this going forward without being provided with a solved response.</b></div>${scaleHTML("practiceFutureCertainty")}</div>
-      <div class="notice"><div><b>I believe I can successfully complete tasks related to my work life without the use of AI assistance.</b></div>${scaleHTML("workWithoutAI")}</div>
       <div id="ratingsErr" class="small bad" style="display:none;margin-top:8px">Please answer all ten questions.</div>
       <div class="row"><button id="btnSubmitRatings" class="btn">Continue</button></div>
     `));
@@ -2253,7 +2252,7 @@ async function fractionInstructionsScreen() {
     const names = [
       "practiceDifficulty", "practiceSuccess", "practiceRewarding", "practiceLearning",
       "practiceMentalDemand", "practiceOwnership", "practiceMeaningful",
-      "practiceFutureConfidence", "practiceFutureCertainty", "workWithoutAI"
+      "practiceFutureConfidence", "practiceFutureCertainty"
     ];
     const t0 = now();
 
