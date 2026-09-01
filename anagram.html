@@ -1719,6 +1719,14 @@ async function fractionInstructionsScreen() {
   }
 
   function restrictAnswerBox(answerBox) {
+    // Answers must be entered manually on every trial.
+    answerBox.addEventListener("paste", e => e.preventDefault());
+    answerBox.addEventListener("drop", e => e.preventDefault());
+    answerBox.addEventListener("beforeinput", e => {
+      if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") {
+        e.preventDefault();
+      }
+    });
     answerBox.addEventListener("keydown", e => {
       if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key)) return;
       if (!/^[a-zA-Z]$/.test(e.key)) e.preventDefault();
