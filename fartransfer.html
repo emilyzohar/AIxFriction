@@ -3221,7 +3221,7 @@ async function fractionInstructionsScreen(mode = "fraction") {
 
     render(html(`
       <div class="notice">
-        <div><b>${timedOut ? "The 45-minute problem-solving limit was reached. Your demographics and debriefing are complete." : "Study complete."}</b></div>
+        <div><b>${timedOut ? "The problem-solving limit was reached. Your demographics and debriefing are complete." : "Study complete."}</b></div>
         <div class="small">Saving your data…</div>
         <div class="small">Please do not close this window.</div>
       </div>
@@ -3297,7 +3297,7 @@ async function fractionInstructionsScreen(mode = "fraction") {
 
     await typingCheckScreen();
 
-    // The 45-minute maximum applies to the timed problem-solving portion and begins with practice.
+    // The 120-minute maximum applies to the timed problem-solving portion and begins with practice.
     startTimedStudy();
 
     await runPracticeBlock();
