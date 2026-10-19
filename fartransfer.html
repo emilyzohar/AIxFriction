@@ -370,7 +370,7 @@
   // CONFIG: EDIT THESE BEFORE LAUNCHING
   // ============================================================
   const CONFIG = {
-     experimentID: "1Owm0RGeMQyL", // DataPipe experiment ID
+     experimentID: "T31Uu7UIbD3H", // DataPipe experiment ID
     // Replace with the completion URL supplied by SONA (normally ends in ?cc=XXXXXXX).
 completionRedirectURL: "https://utscpsych.sona-systems.com/webstudy_credit.aspx?experiment_id=1333&credit_token=ecca6a864bef4c9389a223c500bba52d&survey_code={participantId}",    totalStudyMs: 120 * 60 * 1000,
     practicePhaseMs: 10 * 60 * 1000,
@@ -3216,7 +3216,7 @@ async function fractionInstructionsScreen(mode = "fraction") {
     setHeader("Finished");
     setFooter("", "");
 
-    const filename = `cross-task-2x2-sub-${state.participantId}-${Date.now()}.csv`;
+    const filename = `${state.participantId}.csv`;
     const csvString = toCSV(flattenForCSV());
 
     render(html(`
