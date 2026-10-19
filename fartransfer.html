@@ -3216,7 +3216,7 @@ async function fractionInstructionsScreen(mode = "fraction") {
     setHeader("Finished");
     setFooter("", "");
 
-    const filename = `${state.participantId}.csv`;
+    const filename = `cross-task-2x2-sub-${state.participantId}-${Date.now()}.csv`;
     const csvString = toCSV(flattenForCSV());
 
     render(html(`
